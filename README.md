@@ -9,10 +9,25 @@ redeploy a modified firmware over the device's own OTA update, no flashing tools
 
 ## The device
 
-- **WT32-SC01 Plus**, ESP32-S3, 3.5" touch LCD
+- **WT32-SC01 Plus** (ESP32-S3), 3.5" touch LCD
 - ESP-IDF v4.4.7, Arduino (PlatformIO), LovyanGFX graphics
 - Shows Bitcoin data (price, difficulty, fees, mempool) + hosts a web config page
 - OTA update from `https://btclock.blocktrainer.de/v2/firmware/firmware.json`
+
+### Hardware
+
+| part | detail | source |
+|---|---|---|
+| MCU | ESP32-S3 (dual Xtensa LX7), 8 MB PSRAM | firmware (`chipFamily`, `psramInit`) |
+| Flash | 8 MB | partition table spans `0x0–0x800000` |
+| Display | 3.5" IPS, **ST7701S**, 480×320, 8-bit parallel (i80) | LovyanGFX `Bus_Parallel8` + `esp_lcd_panel_io_i80` |
+| Touch | **FT6336U** capacitive, I2C | `esp32-hal-i2c`, `i2cInit` |
+| WiFi | ESP32-S3 built-in 2.4 GHz 802.11b/g/n | WiFi stack |
+| Buzzer | PWM/LEDC (`buzzer_click`, `buzzer_alert`) | strings |
+
+Driver IC + touch controller names are inferred from the board; they are not
+named in firmware strings. No RTC chip, sensors, or SD card — time is NTP,
+config is NVS.
 
 ## Workflow
 
