@@ -37,8 +37,8 @@ fetch.sh ─▶ unpack.py ─▶ build_elf.py ─▶ Ghidra MCP (decompile) ─�
 ## Setup
 
 ```bash
-git clone git@github.com:nicoSWD/blocktrainer-terminal-hack.git
-cd blocktrainer-terminal-hack
+git clone git@github.com:nicoSWD/blocktrainer-terminal-patch.git
+cd blocktrainer-terminal-patch
 python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt  # (if present)
 ```
 
