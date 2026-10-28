@@ -1,4 +1,4 @@
-# blocktrainer-terminal-hack
+# Blocktrainer Terminal Firmware Patch
 
 Reverse-engineering toolkit for the **BT Clock / BT Terminal** firmware (ESP32-S3) by
 [blocktrainer.de](https://btclock.blocktrainer.de). Fetch, unpack, decompile, patch, and
