@@ -1,0 +1,24 @@
+# --- Blocktrainer firmware (copyrighted — do NOT commit) ---
+*.bin
+firmware.json
+patched_firmware.bin
+
+# --- Derived artifacts (extracted from the firmware) ---
+extracted/
+*.elf
+
+# --- Toolchain / dependencies ---
+tools/
+.venv/
+venv/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Local config / editor / OS ---
+.mcp.json
+.idea/
+.claude/
+.DS_Store
