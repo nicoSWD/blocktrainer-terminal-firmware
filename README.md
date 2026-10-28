@@ -30,6 +30,10 @@ fetch.sh ─▶ unpack.py ─▶ build_elf.py ─▶ Ghidra MCP (decompile) ─�
 | 6. Patch | `scripts/patch.py` | `patched_firmware.bin` (SHA256 recomputed) |
 | 7. Deploy via OTA | `scripts/mitm_firmware.py` | serve patched firmware during update |
 
+> **Decompilation is optional.** Steps 3-5 (cross-ref, ELF, Ghidra MCP) are only needed to
+> understand and change *code* (logic). A string patch (text, labels, URLs) skips them:
+> `fetch.sh` → find the string → `patch.py` → `mitm_firmware.py`.
+
 ## Setup
 
 ```bash
