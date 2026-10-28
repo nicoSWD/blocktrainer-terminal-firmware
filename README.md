@@ -153,10 +153,36 @@ rejects the image. Output: `patched_firmware.bin`.
 
 The device checks `firmware.json` for a newer version, then downloads `firmware.bin`.
 Both are HTTPS, so you need a MITM the device trusts (the device ships a custom CA).
-With that in place:
+
+### How the interception works
+
+Transparent proxy. The device never talks to mitmproxy directly, its traffic is
+redirected at the kernel level:
+
+```
+device ──TLS(mitmproxy cert)──▶ mitmproxy ──TLS(real cert)──▶ btclock.blocktrainer.de
+```
+
+1. Device resolves `btclock.blocktrainer.de` (via dnsmasq) and opens TCP to :443.
+2. An iptables rule silently redirects that connection to mitmproxy on :8080.
+3. mitmproxy (`--mode transparent`) terminates TLS with its own CA cert, then opens its own
+   TLS connection to the real server. Two tunnels, plaintext in the middle.
+
+The intercept box (Kali, the AP/gateway) needs:
 
 ```bash
-mitmproxy --emudhra -s scripts/mitm_firmware.py
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+sudo iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-port 8080
+sudo iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 443 -j REDIRECT --to-port 8080
+```
+
+These are ephemeral, re-apply after every reboot.
+
+### Run mitmproxy
+
+```bash
+cd ~ && mitmproxy --mode transparent --emudhra -s scripts/mitm_firmware.py
 ```
 
 `mitm_firmware.py` bumps `firmware.json`'s `version` (so the device sees a newer build)
