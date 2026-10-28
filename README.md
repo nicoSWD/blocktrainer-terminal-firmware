@@ -147,6 +147,24 @@ Arduino `Update` (no signature check — magic + CRC only), so the modified imag
 **Both intercepts are required** — without the version bump the device logs
 "Bereits auf neuester Version" and never requests `firmware.bin`.
 
+## Safety & recovery
+
+String-only patches (labels, text) are the safe kind: code and offsets stay byte-identical,
+replacements are length-preserved (space-padded before the original null terminator), format
+specifiers are kept, and the SHA256 is recomputed. A patched image boots identically to the
+original — just different text.
+
+If a patch is ever broken, three layers catch it:
+
+1. **OTA flash-time verification** — `Update.end()` verifies the written image (magic + SHA256)
+   before committing; a corrupt image is rejected and the old firmware stays put.
+2. **Boot-time rollback** — rollback support is compiled in; a crashing new app can auto-roll
+   back to the previous app after a few failed boots (bootloader-dependent).
+3. **USB download mode** — the ESP32-S3 ROM bootloader is un-brickable. Hold BOOT + reset,
+   re-flash any firmware with `esptool.py write_flash`. Recovery is guaranteed unless secure
+   boot is enabled with a lost key (this device has no secure boot) or the USB/BOOT pins are
+   physically unreachable.
+
 ## Repo layout
 
 ```
