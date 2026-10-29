@@ -20,7 +20,7 @@ stage, build with a version and start the proxy with the same one:
 
 ```bash
 # stage A, build
-cd firmware && PLATFORMIO_BUILD_FLAGS='-DFIRMWARE_VERSION=\"1.8.3\"' ../reconstructed/.venv/bin/pio run -e safe
+cd firmware && PLATFORMIO_BUILD_FLAGS='-DFIRMWARE_VERSION=\"1.8.3\"' .venv/bin/pio run -e safe
 # proxy: FAKE_VERSION = "1.8.3" in scripts/mitm_firmware.py, patched_firmware.bin = that image
 ```
 

@@ -3,7 +3,9 @@
 A clean, from-scratch firmware for the same device (WT32-SC01 Plus class board, ESP32-S3,
 3.5" ST7796 touch panel). It shows the same nine pages, uses the same data sources, web
 configuration page, OTA mechanism and NVS settings as the stock firmware, but is ordinary
-embedded C++ with ordinary names. `../reconstructed/` stays as the research record.
+embedded C++ with ordinary names. `../research/` holds the fidelity-first decompile
+reconstruction this was ported from (addresses, function tables, the mechanical LVGL
+translation), kept as a research record, not built or maintained.
 
 Hardware pins and the decompile addresses they came from: [HARDWARE.md](HARDWARE.md).
 
@@ -11,7 +13,7 @@ Hardware pins and the decompile addresses they came from: [HARDWARE.md](HARDWARE
 
 ```bash
 cd firmware
-../reconstructed/.venv/bin/pio run          # or any PlatformIO install
+.venv/bin/pio run          # standalone venv; or any PlatformIO install
 ```
 
 Output: `.pio/build/wt32-sc01-plus/firmware.bin` (about 1.66 MB; the app slots are 3.3 MB).

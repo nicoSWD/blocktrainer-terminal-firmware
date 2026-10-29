@@ -111,7 +111,7 @@ python3 scripts/build_elf.py
 ```
 
 Reconstructs a minimal ELF32 (`EM_XTENSA`) from the dumped segments, with the entry point
-and symbols for the display functions (`draw_fees_page`, `lv_label_set_text`, … after the LVGL renaming described in `reconstructed/MODULES.md`).
+and symbols for the display functions (`draw_fees_page`, `lv_label_set_text`, … after the LVGL renaming described in `research/MODULES.md`).
 Ghidra 11+ has native Xtensa, so it loads this directly.
 
 ## 5. Decompile via Ghidra MCP
@@ -231,10 +231,14 @@ If a patch is ever broken, three layers catch it:
 ```
 scripts/   fetch, unpack, cross-ref, patch, mitmproxy addon
 ghidra/    Ghidra 12.1.4 + ghidra-mcp setup (headless, arm64 decompiler)
-firmware/  custom PlatformIO firmware; firmware/host/ is an offline UI test harness
+research/  archived fidelity-first decompile reconstruction (frozen, not built or maintained)
+firmware/  the working custom firmware; firmware/host/ is an offline UI test harness
 ```
 
-Firmware and all derived artifacts are gitignored, see `.gitignore`.
+The downloaded/extracted stock firmware (`*.bin`, `*.elf`, `extracted/`) is gitignored, since it's
+copyrighted and not ours to commit — see `.gitignore`. `research/` and `firmware/` are our own code
+and are tracked normally, aside from build artifacts and `firmware/include/secrets.h` (local
+Wi-Fi credentials, see `firmware/README.md`).
 
 ## Testing the custom firmware UI offline
 
