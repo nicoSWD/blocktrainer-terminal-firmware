@@ -21,7 +21,8 @@ DEFS       := -DUI_HOST_TEST -DLV_CONF_INCLUDE_SIMPLE -DARDUINOJSON_ENABLE_ARDUI
               -DARDUINOJSON_ENABLE_ARDUINO_STREAM=0 -DARDUINOJSON_ENABLE_ARDUINO_PRINT=0
 INC        := -Ishim -I$(FW)/include -I$(FW)/src -I$(LVGL) -I$(AJSON)
 COMMON     := -g -O1 $(DEFS) $(INC)
-CFLAGS_LV  := $(COMMON) $(SAN) -std=gnu11 -w
+# -fno-sanitize=function: LVGL calls its mask callbacks through a generic pointer type (harmless, clang 17+ flags it)
+CFLAGS_LV  := $(COMMON) $(SAN) -fno-sanitize=function -std=gnu11 -w
 CXXFLAGS   := $(COMMON) $(SAN_FATAL) -std=gnu++17 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function
 
 LV_DIRS := core draw hal misc widgets font extra/layouts extra/libs/qrcode extra/others extra/themes extra/widgets
