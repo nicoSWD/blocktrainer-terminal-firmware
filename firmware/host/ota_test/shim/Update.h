@@ -13,6 +13,8 @@ class UpdateClass {
 public:
     // what a test can inspect or inject
     bool begun = false, ended = false, aborted = false;
+    int begin_calls = 0;                // how often begin() was called
+    bool fail_end = false;              // end() reports a validation failure (bad checksum / digest)
     size_t expected = 0, written = 0;
     size_t capacity = 3342336;          // one app slot
     size_t fail_write_after = (size_t)-1;
@@ -22,6 +24,8 @@ public:
     void reset()
     {
         begun = ended = aborted = false;
+        begin_calls = 0;
+        fail_end = false;
         expected = written = 0;
         fail_write_after = (size_t)-1;
         data.clear();
@@ -30,6 +34,7 @@ public:
     bool begin(size_t size = UPDATE_SIZE_UNKNOWN)
     {
         if (size != UPDATE_SIZE_UNKNOWN && size > capacity) { err = UPDATE_ERROR_SIZE; return false; }
+        begin_calls++;
         begun = true;
         expected = size;
         written = 0;
@@ -38,6 +43,8 @@ public:
     size_t write(uint8_t *buf, size_t len)
     {
         if (err || !begun || aborted) return 0;
+        // like the real library: the very first byte of an image must be the ESP image magic
+        if (written == 0 && len > 0 && buf[0] != 0xE9) { err = UPDATE_ERROR_MAGIC_BYTE; return 0; }
         if (written + len > fail_write_after) { err = UPDATE_ERROR_WRITE; return 0; }
         if (expected != UPDATE_SIZE_UNKNOWN && written + len > expected) { err = UPDATE_ERROR_SIZE; return 0; }
         data.insert(data.end(), buf, buf + len);
@@ -49,6 +56,7 @@ public:
         if (err || !begun || aborted) return false;
         if (expected != UPDATE_SIZE_UNKNOWN && written != expected && !evenIfRemaining) { err = UPDATE_ERROR_SIZE; return false; }
         if (data.empty() || data[0] != 0xE9) { err = UPDATE_ERROR_MAGIC_BYTE; return false; }   // image validation
+        if (fail_end) { err = 8; return false; }
         ended = true;
         return true;
     }
