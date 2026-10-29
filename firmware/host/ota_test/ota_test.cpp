@@ -1,4 +1,4 @@
-// Host test for the real ota.cpp: manifest parsing, version comparison and the download/flash loop,
+// Host test for the real ota.cpp: GitHub release lookup, version comparison and the download/flash loop,
 // against a scripted server (server.py) that stalls, trickles, closes early, redirects and fails.
 #include <chrono>
 #include <string>
@@ -59,7 +59,7 @@ static double seconds_since(std::chrono::steady_clock::time_point t0)
 
 static void manifest_case(const char *name, OtaStage stage, const char *version, const char *url_part)
 {
-    printf("manifest %-18s", name);
+    printf("release  %-18s", name);
     reset();
     use_manifest(name);
     auto t0 = std::chrono::steady_clock::now();
@@ -122,15 +122,14 @@ static void firmware_case(const char *name, const Expect &e, size_t fail_write_a
 static void version_table()
 {
     printf("version compare\n");
-    CHECK(ota_version_newer("1.8.3", "1.8.4"), "patch bump");
-    CHECK(ota_version_newer("1.8.3", "1.8.10"), "1.8.10 is newer than 1.8.3 (numeric, not text)");
-    CHECK(ota_version_newer("1.8.3", "1.9.0"), "minor bump");
-    CHECK(ota_version_newer("1.8.3", "2.0.0"), "major bump");
-    CHECK(!ota_version_newer("1.8.3", "1.8.3"), "equal");
-    CHECK(!ota_version_newer("1.8.3", "1.8.2"), "older");
-    CHECK(!ota_version_newer("1.8.3", ""), "empty");
-    CHECK(!ota_version_newer("1.8.3", "abc"), "garbage");
-    CHECK(ota_version_newer("1.8.2", "1.8.3"), "stock to custom");
+    CHECK(ota_version_newer("0.1.0", "0.1.1"), "patch bump");
+    CHECK(ota_version_newer("0.1.0", "0.10.0"), "0.10.0 is newer than 0.1.0 (numeric, not text)");
+    CHECK(ota_version_newer("0.1.9", "0.1.10"), "0.1.10 is newer than 0.1.9");
+    CHECK(ota_version_newer("0.1.0", "1.0.0"), "major bump");
+    CHECK(!ota_version_newer("0.1.0", "0.1.0"), "equal");
+    CHECK(!ota_version_newer("0.1.0", "0.0.9"), "older");
+    CHECK(!ota_version_newer("0.1.0", ""), "empty");
+    CHECK(!ota_version_newer("0.1.0", "abc"), "garbage");
 }
 
 int main(int argc, char **argv)
@@ -141,16 +140,18 @@ int main(int argc, char **argv)
 
     version_table();
 
-    manifest_case("m_stock", OTA_AVAILABLE, "1.9.0", "/fw/ok/firmware.bin");
-    manifest_case("m_double_digit", OTA_AVAILABLE, "1.8.10", "firmware.bin");
-    manifest_case("m_multi", OTA_AVAILABLE, "9.9.9", "/fw/ok/firmware.bin");      // picks the ESP32-S3 build
-    manifest_case("m_same", OTA_IDLE, "1.8.3", "firmware.bin");
-    manifest_case("m_older", OTA_IDLE, "1.8.2", "firmware.bin");
-    manifest_case("m_wrongchip", OTA_IDLE, "9.9.9", nullptr);
-    manifest_case("m_nobuilds", OTA_IDLE, "9.9.9", nullptr);
-    manifest_case("m_nofirmwarepart", OTA_IDLE, "9.9.9", nullptr);
-    manifest_case("m_noversion", OTA_IDLE, "", "firmware.bin");
+    manifest_case("m_newer", OTA_AVAILABLE, "1.9.0", "/fw/ok/firmware.bin");
+    manifest_case("m_double_digit", OTA_AVAILABLE, "0.10.0", "firmware.bin");
+    manifest_case("m_no_v", OTA_AVAILABLE, "2.0.0", "firmware.bin");               // tag without the leading v
+    manifest_case("m_asset_order", OTA_AVAILABLE, "3.0.0", "/fw/ok/firmware.bin"); // decoys listed first
+    manifest_case("m_same", OTA_IDLE, "0.1.0", "firmware.bin");
+    manifest_case("m_older", OTA_IDLE, "0.0.9", "firmware.bin");
+    manifest_case("m_wrongasset", OTA_IDLE, "9.9.9", nullptr);
+    manifest_case("m_onlydecoys", OTA_IDLE, "9.9.9", nullptr);                   // -debug/-safe/checksums only
+    manifest_case("m_noassets", OTA_IDLE, "9.9.9", nullptr);
+    manifest_case("m_notag", OTA_IDLE, "", nullptr);
     manifest_case("m_garbage", OTA_IDLE, nullptr, nullptr);
+    manifest_case("m_404", OTA_IDLE, nullptr, nullptr);
     manifest_case("m_500", OTA_IDLE, nullptr, nullptr);
     manifest_case("m_hang", OTA_IDLE, nullptr, nullptr);
 

@@ -86,10 +86,13 @@ covered by the Wi-Fi lost banner while it is shown (touches still reach it).
 `Update` (`ota_test/shim/`, plain TCP sockets and a recorder) and runs it against a scripted local
 server (`ota_test/server.py`). Real wall-clock time, real threads for the update task, ASan and UBSan on.
 
-* **Manifest:** stock format with three parts (the firmware part is picked by name), a version
-  compare that is numeric (1.8.10 is newer than 1.8.3), the ESP32-S3 build chosen among several, and
-  rejection of an equal or older version, a wrong chip, no builds, no firmware part, no version, invalid
-  JSON, HTTP 500 and a server that never answers.
+* **Release lookup:** a GitHub "latest release" document with a large body and extra fields (the JSON
+  filter must skip them), the firmware asset picked by exact name among the `-debug`/`-safe`/checksum
+  decoys in any order, a tag with or without the leading `v`, a version compare that is numeric (0.10.0
+  is newer than 0.1.0), and rejection of an equal or older version, an asset for a different version, only
+  decoy assets, no assets, no tag, invalid JSON, HTTP 404 (no release yet), HTTP 500 and a server
+  that never answers. The server refuses requests without a `User-Agent` and the vendor `Accept` type,
+  as GitHub does, so every scenario also checks that the headers are sent.
 * **Download:** complete; a slow trickle (must not trip the stall detector); a redirect; a body
   without Content-Length; a stall in the middle of the body and right after the headers (aborts after the
   stall limit, never finalises); a connection closed early (rejected as incomplete); HTTP 404; a server

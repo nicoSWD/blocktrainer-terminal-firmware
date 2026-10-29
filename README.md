@@ -15,7 +15,8 @@ flashing tools needed, or over USB with `esptool` if you have physical access to
 - **WT32-SC01 Plus** (ESP32-S3), 3.5" touch LCD
 - ESP-IDF v4.4.7, Arduino (PlatformIO), LVGL 8 UI on a LovyanGFX panel driver
 - Shows Bitcoin data (price, difficulty, fees, mempool) + hosts a web config page
-- OTA update from `https://btclock.blocktrainer.de/v2/firmware/firmware.json`
+- Stock OTA update from `https://btclock.blocktrainer.de/v2/firmware/firmware.json`; this custom
+  firmware updates itself from [GitHub releases](https://github.com/nicoSWD/blocktrainer-terminal-firmware/releases) instead
 
 ### Hardware
 
@@ -87,8 +88,14 @@ This is also how you go back to stock, or recover a device: run the same command
 
 ## Install over OTA
 
-The device checks `firmware.json` for a newer version, then downloads `firmware.bin`.
+This is the one-time step that gets the custom firmware onto a device that still runs the stock
+image. The stock firmware checks `firmware.json` for a newer version, then downloads `firmware.bin`.
 Both are HTTPS, so you need a MITM the device trusts (the device ships a custom CA).
+
+Once the custom firmware is running it no longer talks to blocktrainer.de for updates: it asks the
+GitHub API for the latest release of this project at boot (and on `/ota`), and installs the
+`bt-terminal-firmware-vX.Y.Z.bin` asset when the tag is newer than its own version. Later updates
+need no proxy.
 
 ### How the interception works
 
@@ -121,7 +128,7 @@ These are ephemeral, re-apply after every reboot.
 cd ~ && mitmproxy --mode transparent --emudhra -s scripts/mitm_firmware.py
 ```
 
-`mitm_firmware.py` bumps `firmware.json`'s `version` (so the device sees a newer build) and
+`mitm_firmware.py` bumps `firmware.json`'s `version` (so the stock firmware sees a newer build) and
 serves our own `firmware.bin` (`PATCHED_FIRMWARE` in the script; the name is historical, it now
 points at the custom firmware build) when `firmware.bin` is requested. The updater uses Arduino
 `Update` (no signature check, magic + CRC only), so it accepts the image.

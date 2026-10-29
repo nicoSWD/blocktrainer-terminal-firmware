@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scripted update server for the host OTA test: a manifest per scenario and firmware downloads that
+"""Scripted update server for the host OTA test: a GitHub-style 'latest release' document per scenario and firmware downloads that
 misbehave on purpose (stall, trickle, close early, redirect, error). Usage: server.py <port>"""
 import socketserver
 import sys
@@ -17,37 +17,62 @@ FIRMWARE = {"ok", "slow", "stall_mid", "stall_start", "short_close", "no_length"
             "redirect", "oversize", "write_fail"}
 
 
+def release(tag, assets):
+    """A trimmed-down GitHub 'latest release' object; the noise fields (and a long body) are what
+    the firmware's JSON filter has to skip."""
+    return {
+        "url": "https://api.github.com/repos/x/y/releases/1",
+        "id": 1,
+        "tag_name": tag,
+        "name": f"Firmware {tag}",
+        "draft": False,
+        "prerelease": False,
+        "author": {"login": "someone", "id": 2, "avatar_url": "https://example.invalid/a.png"},
+        "body": "Release notes. " * 400,
+        "assets": [{"id": i, "name": n, "size": 40000, "state": "uploaded", "browser_download_url": u,
+                    "uploader": {"login": "someone"}} for i, (n, u) in enumerate(assets)],
+    }
+
+
 def manifest(name, port):
     base = f"http://127.0.0.1:{port}"
-    part = lambda path, off: {"path": path, "offset": off}
-    s3 = lambda url, ver: {"chipFamily": "ESP32-S3", "parts": [
-        part(f"{base}/other/bootloader.bin", 0), part(f"{base}/other/partitions.bin", 32768), part(url, 65536)]}
-    if name in FIRMWARE:
-        return 200, {"name": "x", "version": "9.9.9", "builds": [s3(f"{base}/fw/{name}/firmware.bin", "9.9.9")]}
-    if name == "m_stock":
-        return 200, {"name": "x", "version": "1.9.0", "builds": [s3(f"{base}/fw/ok/firmware.bin", "1.9.0")]}
-    if name == "m_same":
-        return 200, {"version": "1.8.3", "builds": [s3(f"{base}/fw/ok/firmware.bin", "")]}
-    if name == "m_older":
-        return 200, {"version": "1.8.2", "builds": [s3(f"{base}/fw/ok/firmware.bin", "")]}
+    fw = lambda ver, path="/fw/ok/firmware.bin": [
+        (f"bt-terminal-firmware-v{ver}-debug.bin", f"{base}/fw/slow/firmware.bin"),
+        (f"bt-terminal-firmware-v{ver}-safe.bin", f"{base}/fw/slow/firmware.bin"),
+        (f"bt-terminal-firmware-v{ver}.bin", f"{base}{path}"),
+        ("SHA256SUMS.txt", f"{base}/other/SHA256SUMS.txt"),
+        ("LICENSE", f"{base}/other/LICENSE"),
+    ]
+    if name in FIRMWARE:                                   # the download scenarios start from a newer release
+        return 200, release("v9.9.9", fw("9.9.9", f"/fw/{name}/firmware.bin"))
+    if name == "m_newer":
+        return 200, release("v1.9.0", fw("1.9.0"))
     if name == "m_double_digit":
-        return 200, {"version": "1.8.10", "builds": [s3(f"{base}/fw/ok/firmware.bin", "")]}
-    if name == "m_wrongchip":
-        return 200, {"version": "9.9.9", "builds": [{"chipFamily": "ESP32", "parts": [part(f"{base}/fw/ok/firmware.bin", 0)]}]}
-    if name == "m_multi":
-        return 200, {"version": "9.9.9", "builds": [
-            {"chipFamily": "ESP32", "parts": [part(f"{base}/fw/slow/firmware.bin", 0)]},
-            s3(f"{base}/fw/ok/firmware.bin", "")]}
-    if name == "m_nobuilds":
-        return 200, {"version": "9.9.9"}
-    if name == "m_nofirmwarepart":
-        return 200, {"version": "9.9.9", "builds": [{"chipFamily": "ESP32-S3", "parts": [part(f"{base}/other/partitions.bin", 0)]}]}
-    if name == "m_noversion":
-        return 200, {"builds": [s3(f"{base}/fw/ok/firmware.bin", "")]}
+        return 200, release("v0.10.0", fw("0.10.0"))
+    if name == "m_same":
+        return 200, release("v0.1.0", fw("0.1.0"))
+    if name == "m_older":
+        return 200, release("v0.0.9", fw("0.0.9"))
+    if name == "m_no_v":
+        return 200, release("2.0.0", fw("2.0.0"))
+    if name == "m_asset_order":                            # the firmware asset is last, after the decoys
+        return 200, release("v3.0.0", list(reversed(fw("3.0.0"))))
+    if name == "m_wrongasset":                             # asset names a different version than the tag
+        return 200, release("v9.9.9", fw("9.9.8"))
+    if name == "m_onlydecoys":
+        return 200, release("v9.9.9", [a for a in fw("9.9.9") if a[0] != "bt-terminal-firmware-v9.9.9.bin"])
+    if name == "m_noassets":
+        return 200, release("v9.9.9", [])
+    if name == "m_notag":
+        r = release("v9.9.9", fw("9.9.9"))
+        del r["tag_name"]
+        return 200, r
     if name == "m_garbage":
         return 200, "<<< this is not json"
     if name == "m_500":
         return 500, "boom"
+    if name == "m_404":                                    # repository without a release yet
+        return 404, {"message": "Not Found"}
     return 404, "unknown"
 
 
@@ -70,8 +95,13 @@ class Handler(socketserver.StreamRequestHandler):
 
     def serve(self):
         line = self.rfile.readline().decode(errors="replace")
-        while self.rfile.readline() not in (b"\r\n", b"\n", b""):
-            pass
+        headers = {}
+        while True:
+            h = self.rfile.readline()
+            if h in (b"\r\n", b"\n", b""):
+                break
+            k, _, v = h.decode(errors="replace").partition(":")
+            headers[k.strip().lower()] = v.strip()
         parts = line.split(" ")[1].strip("/").split("/") if line.count(" ") >= 2 else []
         if len(parts) >= 2 and parts[0] == "m":
             name = parts[1].removesuffix(".json")
@@ -80,6 +110,11 @@ class Handler(socketserver.StreamRequestHandler):
                 return
             status, body = manifest(name, self.server.server_address[1])
             import json
+            # like the real API: no User-Agent is refused outright, and the vendor Accept type is expected
+            if not headers.get("user-agent", "").startswith("bt-terminal-firmware/"):
+                status, body = 403, {"message": "Request forbidden by administrative rules. Please make sure your request has a User-Agent header."}
+            elif "application/vnd.github+json" not in headers.get("accept", ""):
+                status, body = 415, {"message": "Unsupported Accept"}
             payload = (json.dumps(body) if isinstance(body, dict) else body).encode()
             self.head(f"{status} {'OK' if status == 200 else 'ERR'}",
                       f"Content-Type: application/json\r\nContent-Length: {len(payload)}\r\n")

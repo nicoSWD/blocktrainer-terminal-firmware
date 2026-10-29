@@ -10,9 +10,10 @@
 #include <Preferences.h>
 #include "diag.h"
 
-// Override per build with  PLATFORMIO_BUILD_FLAGS='-DFIRMWARE_VERSION=\"1.8.4\"' pio run -e ...
+// Override per build with  PLATFORMIO_BUILD_FLAGS='-DFIRMWARE_VERSION=\"0.1.1\"' pio run -e ...
+// (the release workflow does this from the tag). Compared as %d.%d.%d against the latest GitHub release.
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.8.3"
+#define FIRMWARE_VERSION "0.1.0"
 #endif
 #define NVS_NAMESPACE    "BTCLOCK"
 
@@ -21,9 +22,14 @@
 #define URL_MEMPOOL  "https://api.blocktrainer.de/mempool.json"
 #define URL_YOUTUBE  "https://api.blocktrainer.de/youtube.json"
 #define URL_NEWS     "https://api.blocktrainer.de/news.json"
+// Update channel: the latest (non-draft, non-prerelease) release of this project on GitHub.
 #ifndef URL_UPDATE      // the host OTA test points this at a local server
-#define URL_UPDATE   "https://btclock.blocktrainer.de/v2/firmware/firmware.json"
+#define URL_UPDATE   "https://api.github.com/repos/nicoSWD/blocktrainer-terminal-firmware/releases/latest"
 #endif
+// The release asset holding the normal build is named OTA_ASSET_PREFIX + version + OTA_ASSET_SUFFIX
+// (see "Stage release assets" in .github/workflows/firmware-release.yml).
+#define OTA_ASSET_PREFIX "bt-terminal-firmware-v"
+#define OTA_ASSET_SUFFIX ".bin"
 
 // Page identifiers, in the order of the page table in ui.cpp.
 enum PageId {

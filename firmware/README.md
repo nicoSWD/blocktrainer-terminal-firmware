@@ -27,7 +27,7 @@ AddressSanitizer and UBSan: `cd firmware/host && make -j8 run` (about 30 s). It 
 clipped or off screen), widget lifetime and out-of-bounds access. It does not cover fonts beyond
 the built-in ones, real touch or panel behaviour, FreeRTOS scheduling or heap pressure. See
 `host/README.md`. `make ota-test` in the same folder runs the real OTA code against a scripted server that
-stalls, trickles, closes early, redirects and fails (manifest handling, version compare, download loop).
+stalls, trickles, closes early, redirects and fails (GitHub release lookup, version compare, download loop).
 
 ## Install over USB
 
@@ -60,12 +60,18 @@ cp firmware/.pio/build/wt32-sc01-plus/firmware.bin patched_firmware.bin
 mitmproxy --mode transparent --emudhra -s scripts/mitm_firmware.py     # from the repo root
 ```
 
-`FIRMWARE_VERSION` is `1.8.3`, the same as the script's `FAKE_VERSION`. That is deliberate: the
-stock manifest says 1.8.2 and the proxied one 1.8.3, so this firmware never offers itself an
-update. The flip side: **for every new custom build, raise `FIRMWARE_VERSION` in `config.h` and
-`FAKE_VERSION` in `scripts/mitm_firmware.py` together**, with the proxy's version higher, or the
-device sees nothing newer. Going back to stock over OTA needs a manifest version above the
-installed one (serve the stock `firmware.bin`).
+The proxy is only needed once, to get off the stock firmware. `FAKE_VERSION` in
+`scripts/mitm_firmware.py` just has to be above the stock version (1.8.2); it is unrelated to
+`FIRMWARE_VERSION`, which is `0.1.0` here and is set from the git tag in the release workflow.
+
+**Updates after that come from GitHub.** At boot (when "check for updates" is on) and on `/ota`, the
+firmware asks `api.github.com/repos/nicoSWD/blocktrainer-terminal-firmware/releases/latest` and compares
+the tag (`v0.1.1`, compared as `%d.%d.%d`) with its own `FIRMWARE_VERSION`. If it is newer, the
+asset named `bt-terminal-firmware-v0.1.1.bin` is offered and installed through the normal prompt (the
+`-debug` and `-safe` assets are never picked). Drafts and prereleases are ignored. The TLS connection
+is not certificate-verified, the same as the stock updater was, so treat the channel as only as
+trustworthy as your network. Going back to stock over OTA needs the proxy serving the stock
+`firmware.bin` with a version above the one the stock firmware reports, or a USB flash.
 
 **Before the first OTA install, make sure you can recover over USB** (above). The realistic
 failure is a panel that initialises but stays blank.
@@ -98,7 +104,7 @@ Wi-Fi, OTA and the web server do not depend on the display or on the sound/LED d
   images built with it.
 * **The update prompt skips itself after 2 minutes** (a blank or unresponsive panel cannot hold the
   device), and the web server is already running while it is up. `curl http://<ip>/ota` reports
-  the manifest version, `curl 'http://<ip>/ota?install=1'` installs a newer one without touching
+  the latest release version, `curl 'http://<ip>/ota?install=1'` installs a newer one without touching
   the screen. An on-screen Wi-Fi wizard that nobody answers for 5 minutes hands over to the
   setup access point.
 * **OTA** has connect and read timeouts, aborts a stalled or short download instead of flashing it,
@@ -118,7 +124,7 @@ Wi-Fi, OTA and the web server do not depend on the display or on the sound/LED d
 | `wifi_link.*` | credentials, reconnect task, watchdog (named `wifi_link` because `wifi.h` would shadow the framework's `WiFi.h` on a case-insensitive filesystem) |
 | `wifi_portal.*` | setup access point and form for devices without a usable screen |
 | `bootguard.*` | crash-loop counter and safe mode |
-| `ota.*` | manifest check and download/flash task |
+| `ota.*` | GitHub release check and download/flash task |
 | `web.*`, `web_page.h`, `timezones.h` | configuration server |
 | `pages.*` | page names, enable keys, `pageOrder` handling (no LVGL) |
 | `ui_core.cpp` | panel, LVGL port, UI task, navigation, status screens, alert, stream bar, night mode |
