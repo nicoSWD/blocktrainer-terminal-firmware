@@ -27,9 +27,12 @@ class WiFiClass {
 public:
     wl_status_t status() { return g_host_wifi_connected ? WL_CONNECTED : WL_DISCONNECTED; }
     IPAddress localIP() { return IPAddress(192, 168, 178, 123); }
-    int scanNetworks();
+    int scanNetworks(bool async = false, bool show_hidden = false, bool passive = false, uint32_t max_ms_per_chan = 300);
     String SSID(int i);
     int32_t RSSI(int i);
-    void scanDelete() {}
+    int32_t channel(int i);
+    const uint8_t *BSSID(int i);
+    bool disconnect(bool wifioff = false, bool eraseap = false);
+    void scanDelete();
 };
 extern WiFiClass WiFi;

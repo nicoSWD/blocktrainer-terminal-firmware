@@ -102,7 +102,16 @@ static const char *SCAN[] = {
     "WLAN-Nachbar #1 €",
     "o2-WLAN42",
 };
-int WiFiClass::scanNetworks() { return g_host_scan_count; }
+int WiFiClass::scanNetworks(bool, bool, bool, uint32_t) { delay(2000); return g_host_scan_count; }   // a scan takes a few seconds
+bool WiFiClass::disconnect(bool, bool) { return true; }
+void WiFiClass::scanDelete() {}
+int32_t WiFiClass::channel(int i) { return 1 + (i * 5) % 13; }
+const uint8_t *WiFiClass::BSSID(int i)
+{
+    static uint8_t b[6];
+    for (int k = 0; k < 6; k++) b[k] = (uint8_t)(0x10 * k + i);
+    return b;
+}
 String WiFiClass::SSID(int i)
 {
     if (i < 0) return String();

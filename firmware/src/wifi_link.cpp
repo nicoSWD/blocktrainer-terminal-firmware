@@ -5,6 +5,7 @@
 #include "net.h"
 #include "web.h"
 #include "ui.h"
+#include "wifi_scan.h"
 
 volatile bool g_wifi_ok = false;
 volatile bool g_wifi_connecting = false;
@@ -82,21 +83,14 @@ static void reconnect_task(void *param)
         WiFi.disconnect(true, false);
         delay(100);
 
-        int n = WiFi.scanNetworks(false, false, false, 300);
-        int best_rssi = -100, best_ch = 0;
-        uint8_t best_bssid[6] = {0};
-        bool found = false;
-        for (int i = 0; i < n; i++) {
-            if (WiFi.SSID(i) == g_ssid && WiFi.RSSI(i) > best_rssi) {
-                best_rssi = WiFi.RSSI(i);
-                best_ch = WiFi.channel(i);
-                memcpy(best_bssid, WiFi.BSSID(i), 6);
-                found = true;
-            }
-        }
-        if (found) {
-            DBG("wifi: strongest AP for %s on channel %d (%d dBm)\n", g_ssid.c_str(), best_ch, best_rssi);
-            WiFi.begin(g_ssid.c_str(), g_pass.c_str(), best_ch, best_bssid, true);
+        WifiScan scan = wifi_scan(2);
+        const WifiAp *best = wifi_find_ap(scan.aps, g_ssid);
+        DBG("wifi: scan found %d access points (code %d, %d tries)\n", (int)scan.aps.size(), scan.code, scan.attempts);
+        if (best) {
+            DBG("wifi: strongest AP for %s on channel %d (%d dBm)\n", g_ssid.c_str(), best->channel, best->rssi);
+            uint8_t bssid[6];
+            memcpy(bssid, best->bssid, 6);
+            WiFi.begin(g_ssid.c_str(), g_pass.c_str(), best->channel, bssid, true);
         } else {
             DBG("wifi: SSID not in scan, plain connect\n");
             WiFi.begin(g_ssid.c_str(), g_pass.c_str());

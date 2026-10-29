@@ -177,7 +177,11 @@ on the Mac instead, against the real code:
   sends malformed releases, to check version handling and the download loop without needing a device
   or a real failure to happen to catch it.
 
-Both run, together with a build of every firmware environment, on each pull request
+* `cd firmware/host && make wifi-test` — runs the real Wi-Fi scan code (used by the setup wizard, the
+  setup access point and the reconnect task) against a scripted radio: failed or empty scans,
+  a radio busy joining, duplicate and hidden networks, ordering and limits.
+
+All of these run, together with a build of every firmware environment, on each pull request
 (`.github/workflows/tests.yml`) and again before a release is built.
 
 What each harness covers and does not cover is in `firmware/host/README.md`.

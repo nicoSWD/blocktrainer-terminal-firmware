@@ -102,6 +102,11 @@ jobs:
         working-directory: firmware/host
         run: make ota-test
 
+      # The scan that fills the setup wizard's network list, against a scripted radio.
+      - name: Offline Wi-Fi scan test
+        working-directory: firmware/host
+        run: make wifi-test
+
       # The device finds updates by this asset name (OTA_ASSET_PREFIX/SUFFIX in firmware/src/config.h,
       # matched in ota_check()): keep "bt-terminal-firmware-v<version>.bin" for the normal build.
       - name: Stage release assets

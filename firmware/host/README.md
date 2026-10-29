@@ -120,3 +120,28 @@ cut off at 12000 of 40000 bytes is accepted and finalised, which is what the ori
 Not covered: TLS (the stand-ins use plain HTTP), the real Arduino `HTTPClient`/`WiFiClient` and lwIP
 (their `connected()`/`available()` semantics are re-implemented here from the library's behaviour),
 flash and partition handling, and a Wi-Fi drop in the middle of a transfer.
+
+## Wi-Fi scan test
+
+`make wifi-test` compiles the real `src/wifi_scan.cpp` (the scan used by the setup wizard, the setup
+access point page and the reconnect task) against a scripted radio and a virtual clock
+(`wifi_test/`), so it runs in milliseconds and cannot flake. The radio models what matters on the
+ESP32: a scan fails while a join is pending until `disconnect()` is called, the driver's results are
+gone after `scanDelete()`, and any return code can be forced for the next scans. About 2000 checks.
+
+* **Retries:** a scan that fails (`-2`) or finds nothing (`0`) is retried after a growing pause, up to
+  the attempt budget; a pending join is stopped before each scan; an established connection is not
+  disconnected; the total time stays bounded and the watchdog callback runs while waiting; a budget
+  of 0 or less still scans once.
+* **Results:** copied out of the driver before it is freed; ordered strongest first with ties in driver
+  order; channel and BSSID kept; UTF-8, 32-character, emoji and markup-looking names unchanged;
+  80 access points.
+* **Lists:** `wifi_networks()` gives one entry per visible name (strongest access point, hidden
+  networks dropped, names case and whitespace sensitive), the limit counts names and not access
+  points, unsorted input is fine; `wifi_find_ap()` picks the strongest access point of an exact name
+  and never matches an empty name. 2000 random lists are checked against a reference implementation.
+
+The wizard screens are covered by the UI test (`make run`): the list (one row per name, strongest
+first, at most 15, tapping a row selects that network), the "no networks found" screen with its
+rescan button after a scan returns 0 or fails, and the rescan itself.
+

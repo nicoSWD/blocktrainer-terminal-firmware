@@ -30,7 +30,7 @@ LV_SRC  := $(foreach d,$(LV_DIRS),$(shell find $(LVGL)/src/$(d) -name '*.c'))
 LV_SRC  += $(wildcard $(LVGL)/src/extra/*.c)
 LV_OBJ  := $(patsubst $(LVGL)/%.c,$(BUILD)/lvgl/%.o,$(LV_SRC))
 
-FW_CXX  := $(FW)/src/ui_pages.cpp $(FW)/src/ui_menu.cpp $(FW)/src/pages.cpp
+FW_CXX  := $(FW)/src/ui_pages.cpp $(FW)/src/ui_menu.cpp $(FW)/src/pages.cpp $(FW)/src/wifi_scan.cpp
 FW_OBJ  := $(patsubst $(FW)/src/%.cpp,$(BUILD)/fw/%.o,$(FW_CXX))
 # host_main.cpp includes ui_core.cpp itself (it needs its statics)
 HOST_OBJ := $(BUILD)/host_main.o $(BUILD)/host_stubs.o
@@ -100,3 +100,17 @@ $(BUILD)/ota_test: $(FW)/src/ota.cpp ota_test/ota_test.cpp ota_test/ota_test_stu
 .PHONY: ota-test
 ota-test: $(BUILD)/ota_test
 	./ota_test/run.sh
+
+# ---------------------------------------------------------------- Wi-Fi scan test
+# The real wifi_scan.cpp against a scripted radio and a virtual clock (wifi_test/): scans that fail or come
+# back empty, a radio that is busy joining, results the driver freed, duplicate and hidden networks, limits.
+#   make wifi-test
+WIFI_FLAGS := -g -O1 -std=gnu++17 $(SAN_FATAL) -Wall -Wextra -Wno-unused-parameter -Ishim -I$(FW)/include -I$(FW)/src -Iwifi_test
+
+$(BUILD)/wifi_test: $(FW)/src/wifi_scan.cpp $(FW)/src/wifi_scan.h wifi_test/wifi_test.cpp wifi_test/wifi_test_stubs.cpp wifi_test/wifi_test_radio.h shim/*.h
+	@mkdir -p $(BUILD)
+	$(CXX) $(WIFI_FLAGS) $(FW)/src/wifi_scan.cpp wifi_test/wifi_test.cpp wifi_test/wifi_test_stubs.cpp -o $@
+
+.PHONY: wifi-test
+wifi-test: $(BUILD)/wifi_test
+	./$(BUILD)/wifi_test

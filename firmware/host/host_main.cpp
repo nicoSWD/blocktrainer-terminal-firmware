@@ -85,6 +85,16 @@ static void run_ms(uint32_t ms, uint32_t dt = 10)
 
 static void settle() { run_ms(1300); }
 
+// first label below `root` whose text starts with `prefix`
+static lv_obj_t *find_label(lv_obj_t *root, const char *prefix)
+{
+    if (!root) return nullptr;
+    if (lv_obj_check_type(root, &lv_label_class) && !strncmp(lv_label_get_text(root), prefix, strlen(prefix))) return root;
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(root); i++)
+        if (lv_obj_t *f = find_label(lv_obj_get_child(root, i), prefix)) return f;
+    return nullptr;
+}
+
 // ---------------------------------------------------------------- touch injection
 
 static void tap(int x, int y, uint32_t hold = 70)
@@ -593,6 +603,60 @@ static void render_all()
     run_ms(100);
     shot("wizard_password");
     close_everything();
+
+    // wizard when the scan finds nothing (0) or fails (-2, WIFI_SCAN_FAILED): say so, offer another scan
+    for (int count : { 0, -2 }) {
+        g_host_scan_count = count;
+        ui_show(UI_WIFI_WIZARD); settle();
+        wizard_scan_task(nullptr);
+        settle();
+        shot(count == 0 ? "wizard_scan_empty" : "wizard_scan_failed");
+        if (!find_label(s_sys, "KEINE NETZWERKE")) { printf("  FAIL no 'nothing found' message after a scan returning %d\n", count); g_warnings++; }
+        lv_obj_t *again = find_label(s_sys, "NEU SUCHEN");
+        if (!again) { printf("  FAIL no rescan button after a scan returning %d\n", count); g_warnings++; }
+        if (count == 0 && again) {                      // tapping it searches again, and a scan that works shows the list
+            tap_obj(lv_obj_get_parent(again));
+            settle();
+            if (!find_label(s_sys, "SUCHE NETZWERKE")) { printf("  FAIL rescan button did not start a search\n"); g_warnings++; }
+            g_host_scan_count = 10;
+            wizard_scan_task(nullptr);
+            settle();
+            if (find_label(s_sys, "KEINE NETZWERKE") || !find_label(s_sys, "FRITZ!Box 7590 JK")) { printf("  FAIL list missing after the rescan\n"); g_warnings++; }
+        }
+        close_everything();
+    }
+
+    // wizard list contents: one row per visible network name, strongest first, at most 15, rescan button present
+    g_host_scan_count = 10;                             // 10 scan results: 1 duplicate name, 1 hidden network
+    ui_show(UI_WIFI_WIZARD); settle();
+    wizard_scan_task(nullptr);
+    settle();
+    {
+        lv_obj_t *list = lv_obj_get_child(s_sys, 1);
+        uint32_t rows = list ? lv_obj_get_child_cnt(list) : 0;
+        if (rows != 8) { printf("  FAIL wizard shows %u rows, wanted 8 (10 results, 1 duplicate, 1 hidden)\n", rows); g_warnings++; }
+        lv_obj_t *first = list && rows ? lv_obj_get_child(list, 0) : nullptr;
+        if (!first || !find_label(first, "FRITZ!Box 7590 JK")) { printf("  FAIL strongest network is not the first row\n"); g_warnings++; }
+        if (!find_label(s_sys, "NEU SUCHEN")) { printf("  FAIL no rescan button on the list screen\n"); g_warnings++; }
+        if (first) {                                    // the row remembers its network, not a scan index
+            tap_obj(first);
+            settle();
+            if (g_ssid != "FRITZ!Box 7590 JK") { printf("  FAIL tapping the first row selected '%s'\n", g_ssid.c_str()); g_warnings++; }
+        }
+    }
+    close_everything();
+    g_host_scan_count = 18;                             // more networks than fit: the list stops at 15 names
+    ui_show(UI_WIFI_WIZARD); settle();
+    wizard_scan_task(nullptr);
+    settle();
+    {
+        lv_obj_t *list = lv_obj_get_child(s_sys, 1);
+        uint32_t rows = list ? lv_obj_get_child_cnt(list) : 0;
+        if (rows != 15) { printf("  FAIL wizard shows %u rows, wanted 15\n", rows); g_warnings++; }
+        shot("wizard_list_full");
+    }
+    close_everything();
+    g_host_scan_count = 10;
 
     // OTA screens
     printf("-- ota\n");
