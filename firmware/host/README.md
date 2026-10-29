@@ -80,23 +80,36 @@ Known and left alone: absurd fee values (12345 sat/vB) overflow their column on 
 (reported as `info` for the `huge_*` images), and the converter's SPEICHERN button is partly
 covered by the Wi-Fi lost banner while it is shown (touches still reach it).
 
-## OTA download test
+## OTA update test
 
 `make ota-test` compiles the real `src/ota.cpp` against stand-ins for `HTTPClient`, `WiFiClient` and
 `Update` (`ota_test/shim/`, plain TCP sockets and a recorder) and runs it against a scripted local
-server (`ota_test/server.py`). Real wall-clock time, real threads for the update task, ASan and UBSan on.
+server (`ota_test/server.py`) that behaves like the GitHub API and release CDN, and misbehaves on
+purpose. Real wall-clock time, real threads for the update task, ASan and UBSan on. About 600 checks.
 
-* **Release lookup:** a GitHub "latest release" document with a large body and extra fields (the JSON
-  filter must skip them), the firmware asset picked by exact name among the `-debug`/`-safe`/checksum
-  decoys in any order, a tag with or without the leading `v`, a version compare that is numeric (0.10.0
-  is newer than 0.1.0), and rejection of an equal or older version, an asset for a different version, only
-  decoy assets, no assets, no tag, invalid JSON, HTTP 404 (no release yet), HTTP 500 and a server
-  that never answers. The server refuses requests without a `User-Agent` and the vendor `Accept` type,
-  as GitHub does, so every scenario also checks that the headers are sent.
-* **Download:** complete; a slow trickle (must not trip the stall detector); a redirect; a body
-  without Content-Length; a stall in the middle of the body and right after the headers (aborts after the
-  stall limit, never finalises); a connection closed early (rejected as incomplete); HTTP 404; a server
-  that never sends headers (read timeout); an image bigger than an app slot; a flash write error.
+* **Release lookup** (`ota_check()`): a "latest release" document with a 300 KB body and noise fields
+  (the JSON filter must skip them), 60+ assets, and the firmware asset picked by exact name among
+  `-debug`/`-safe`/checksum decoys and near misses (`.sig`, prefix, wrong case, zero-padded version)
+  in any order. Tags with or without `v`/`V`. A 301 (renamed repository), a body that ends at
+  connection close, a slowly trickling body. The request must carry a `User-Agent` and the vendor
+  `Accept` type, or the server answers 403 like GitHub does.
+* **Nothing offered** (IDLE, no URL, not active, never an error screen): equal or older version, an
+  asset for a different version, only decoys, no assets, null/mistyped `assets`, `tag_name` or entries,
+  an asset without a URL, `{}`, `[]`, `null`, an empty or invalid body, a body cut off or stalled
+  half-way, hang-up before the answer, a redirect loop, HTTP 403 (rate limit), 404 (no release yet),
+  429, 500, 503, a server that never answers, a closed port, Wi-Fi down.
+* **No stale state:** after any failed or empty lookup the offer from a previous successful lookup
+  is gone (URL, version, `active`), and repeated lookups give the same answer.
+* **Version compare:** numeric per component (0.10.0 > 0.9.9), missing or extra components,
+  pre-release suffixes, leading zeros and spaces, negatives, garbage, plus every pair of an 11-version
+  list checked against the expected order.
+* **Download:** complete; a slow trickle (must not trip the stall detector); redirects (relative,
+  absolute, two hops); a body without Content-Length; extra bytes after Content-Length (never read or
+  written); a stall mid-body and right after the headers (aborts after the stall limit, never
+  finalises); a connection closed early (rejected as incomplete); HTTP 404; a redirect loop; an empty
+  body; a captive-portal HTML page served as 200 (rejected by the image magic byte); a server that
+  never sends headers; an image bigger than an app slot; a flash write error; a failing final image
+  validation; a second start request while a download runs (one flash session).
 * After every failure the test checks that `Update.end()` was never reached and that the task ended.
 
 The stall limit is 20 s on the device and 2 s here (`OTA_STALL_MS`), HTTP timeouts are scaled by

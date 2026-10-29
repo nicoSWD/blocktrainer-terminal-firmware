@@ -23,7 +23,9 @@ bool ota_version_newer(const String &current, const String &remote)
 //       "browser_download_url": "https://github.com/.../bt-terminal-firmware-v0.1.1.bin" }, ... ] }
 // The firmware is the asset named OTA_ASSET_PREFIX + version + OTA_ASSET_SUFFIX; the -debug and -safe
 // builds and the checksum/license files next to it are ignored.
-// `stage` becomes OTA_AVAILABLE when that version is newer than FIRMWARE_VERSION.
+// `stage` becomes OTA_AVAILABLE when that version is newer than FIRMWARE_VERSION. Any other outcome
+// (no network answer, HTTP error, unreadable JSON, no matching asset, not newer) leaves OTA_IDLE with
+// no offer and no version from an earlier check, so a failed lookup never keeps a stale offer alive.
 void ota_check()
 {
     DBG("ota: checking %s\n", URL_UPDATE);
@@ -31,6 +33,10 @@ void ota_check()
         DBG("ota: Wi-Fi not connected\n");
         return;
     }
+    ota.stage = OTA_IDLE;
+    ota.active = false;
+    ota.remoteVersion = "";
+    ota.firmwareUrl = "";
 
     HTTPClient http;
     http.setConnectTimeout(8000);
@@ -45,8 +51,6 @@ void ota_check()
     int code = http.GET();
     if (code != 200) {
         DBG("ota: release lookup HTTP %d\n", code);
-        ota.stage = OTA_IDLE;
-        ota.active = false;
         http.end();
         return;
     }
@@ -57,7 +61,7 @@ void ota_check()
     filter["tag_name"] = true;
     filter["assets"][0]["name"] = true;
     filter["assets"][0]["browser_download_url"] = true;
-    DynamicJsonDocument doc(6144);
+    DynamicJsonDocument doc(16384);       // ~200 bytes per asset: room for dozens, the filter drops everything else
     DeserializationError err = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
     if (err) {
         DBG("ota: release JSON error %s\n", err.c_str());
@@ -73,21 +77,15 @@ void ota_check()
     if (!version.isEmpty()) {
         String wanted = String(OTA_ASSET_PREFIX) + version + OTA_ASSET_SUFFIX;
         for (JsonObject asset : doc["assets"].as<JsonArray>()) {
-            if (wanted == (asset["name"] | "")) {
-                url = asset["browser_download_url"] | "";
-                break;
-            }
+            if (wanted != (asset["name"] | "")) continue;
+            url = asset["browser_download_url"] | "";
+            if (!url.isEmpty()) break;          // a matching entry without a URL is not an offer
         }
     }
+    if (url.isEmpty() || !ota_version_newer(FIRMWARE_VERSION, ota.remoteVersion)) return;
     ota.firmwareUrl = url;
-
-    if (url.isEmpty() || !ota_version_newer(FIRMWARE_VERSION, ota.remoteVersion)) {
-        ota.stage = OTA_IDLE;
-        ota.active = false;
-    } else {
-        ota.stage = OTA_AVAILABLE;
-        ota.active = true;
-    }
+    ota.stage = OTA_AVAILABLE;
+    ota.active = true;
 }
 
 static void fail(const String &message)
@@ -117,6 +115,11 @@ static void download_and_flash(const String &url)
         return;
     }
     int len = http.getSize();            // -1 when the server sends no length
+    if (len == 0) {                      // an empty body is never a firmware image
+        fail("empty download");
+        http.end();
+        return;
+    }
     ota.total = len > 0 ? len : 0;
     if (!Update.begin(len > 0 ? (size_t)len : UPDATE_SIZE_UNKNOWN)) {
         fail("Update.begin() failed (not enough space?)");
@@ -140,7 +143,9 @@ static void download_and_flash(const String &url)
             delay(1);
             continue;
         }
-        int n = stream->readBytes(buf, min(avail, sizeof(buf)));
+        size_t want = min(avail, sizeof(buf));
+        if (len > 0) want = min(want, (size_t)(len - written));     // never read or write past the announced size
+        int n = stream->readBytes(buf, want);
         if (n <= 0) break;
         if (Update.write(buf, n) != (size_t)n) { failed = true; break; }
         written += n;

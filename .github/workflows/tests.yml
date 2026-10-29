@@ -1,0 +1,77 @@
+name: Tests
+
+# Runs on every pull request: builds all three firmware/platformio.ini environments (catches compile
+# errors) and runs the offline UI and OTA test suites in firmware/host/. Nothing is published.
+# The release workflow runs the same suites again before it builds a release.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Same cache key as the release workflow, so both reuse each other's downloads.
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: python3 -m pip install --upgrade pip platformio
+
+      - name: Install host test toolchain
+        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends clang build-essential
+
+      # firmware/host/Makefile compiles against the libraries PlatformIO keeps in
+      # firmware/.pio/libdeps/wt32-sc01-plus/ (lvgl, ArduinoJson), so fetch them first.
+      - name: Fetch platform and libraries
+        working-directory: firmware
+        run: pio pkg install -e wt32-sc01-plus
+
+      # The OTA suite is the cheapest and the one that must never be flaky: run it first.
+      - name: Offline OTA test (GitHub release lookup and download)
+        working-directory: firmware/host
+        run: make ota-test
+
+      - name: Offline UI test (LVGL render + ASan/UBSan stress)
+        working-directory: firmware/host
+        run: make -j"$(nproc)" run
+
+      - name: Build firmware (normal, debug, safe)
+        working-directory: firmware
+        run: |
+          for env in wt32-sc01-plus debug safe; do
+            echo "::group::pio run -e $env"
+            pio run -e "$env"
+            echo "::endgroup::"
+          done
+
+      # Rendered screens, to look at when the UI test fails.
+      - name: Upload rendered screens
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-render
+          path: firmware/host/out/
+          if-no-files-found: ignore
