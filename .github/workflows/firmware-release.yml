@@ -1,0 +1,152 @@
+name: Build and release firmware
+
+# Tag push (vMAJOR.MINOR.PATCH) builds all three firmware/platformio.ini environments, runs the
+# offline UI and OTA test suites in firmware/host/ as a gate, and publishes a GitHub release with
+# the binaries. workflow_dispatch does the same build+test without creating a release, for trying
+# the workflow out or getting an artifact without tagging anything.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 1.8.4). No release is created for a manual run."
+        required: false
+        default: "0.0.0-dev"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: firmware-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+            if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH — FIRMWARE_VERSION is compared as %d.%d.%d (see firmware/src/ota.cpp)"
+              exit 1
+            fi
+            VERSION="${TAG#v}"
+            IS_RELEASE=true
+          else
+            VERSION="${{ inputs.version }}"
+            TAG="v$VERSION"
+            IS_RELEASE=false
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "is_release=$IS_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "Building firmware $VERSION (release: $IS_RELEASE)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Platform + framework packages are the slow part (hundreds of MB); keyed on platformio.ini
+      # so a lib_deps/platform bump invalidates it instead of silently building against stale ones.
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: python3 -m pip install --upgrade pip platformio
+
+      # make/clang for firmware/host/ (the offline UI+OTA test harnesses), not needed for the
+      # device build itself.
+      - name: Install host test toolchain
+        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends clang build-essential
+
+      - name: Build firmware (normal, debug, safe)
+        working-directory: firmware
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for env in wt32-sc01-plus debug safe; do
+            echo "::group::pio run -e $env"
+            FLAGS='-DFIRMWARE_VERSION=\"'"$VERSION"'\"'
+            PLATFORMIO_BUILD_FLAGS="$FLAGS" pio run -e "$env"
+            echo "::endgroup::"
+          done
+
+      # firmware/host/Makefile builds the UI sources against the libdeps that the device build
+      # above just fetched (firmware/.pio/libdeps/wt32-sc01-plus/{lvgl,ArduinoJson}), so this only
+      # works after the build step. Fails the job (and so blocks the release) on any ASan/UBSan
+      # finding or layout/lifetime regression.
+      - name: Offline UI test (LVGL render + ASan/UBSan stress)
+        working-directory: firmware/host
+        run: make -j"$(nproc)" run
+
+      # Runs the real OTA download code (firmware/src/ota.cpp) against a scripted local server
+      # that stalls, trickles, closes early, redirects and fails.
+      - name: Offline OTA download test
+        working-directory: firmware/host
+        run: make ota-test
+
+      - name: Stage release assets
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p release-assets
+          cp firmware/.pio/build/wt32-sc01-plus/firmware.bin "release-assets/bt-terminal-firmware-v${VERSION}.bin"
+          cp firmware/.pio/build/debug/firmware.bin           "release-assets/bt-terminal-firmware-v${VERSION}-debug.bin"
+          cp firmware/.pio/build/safe/firmware.bin            "release-assets/bt-terminal-firmware-v${VERSION}-safe.bin"
+          ( cd release-assets && sha256sum *.bin > SHA256SUMS.txt )
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-v${{ steps.version.outputs.version }}
+          path: release-assets/
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        if: steps.version.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          NOTES_FILE="$(mktemp)"
+          cat > "$NOTES_FILE" <<EOF
+          Custom firmware for the BT Clock / BT Terminal (ESP32-S3), version $VERSION.
+
+          Built with the same toolchain, image format and partition table as the stock firmware;
+          installs over the device's own OTA update (see README.md, "Deploy via OTA interception").
+          Passed the offline UI (LVGL + AddressSanitizer/UBSan) and OTA download test suites in
+          \`firmware/host/\` before this release was built.
+
+          **Assets**
+          - \`bt-terminal-firmware-v$VERSION.bin\` — the firmware to install.
+          - \`bt-terminal-firmware-v$VERSION-debug.bin\` — same firmware, serial logging forced on.
+            For bring-up/debugging only.
+          - \`bt-terminal-firmware-v$VERSION-safe.bin\` — networking only (no display/sound/LED),
+            for first-contact bring-up on a device with no USB access.
+          - \`SHA256SUMS.txt\` — checksums of the three images above.
+
+          The debug and safe builds expose an unauthenticated \`/update\` HTTP upload route — don't
+          leave either installed on a device you care about.
+          EOF
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+          else
+            gh release create "$TAG" release-assets/* --title "Firmware $VERSION" --notes-file "$NOTES_FILE"
+          fi
