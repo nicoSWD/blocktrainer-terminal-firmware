@@ -109,6 +109,7 @@ jobs:
           cp firmware/.pio/build/debug/firmware.bin           "release-assets/bt-terminal-firmware-v${VERSION}-debug.bin"
           cp firmware/.pio/build/safe/firmware.bin            "release-assets/bt-terminal-firmware-v${VERSION}-safe.bin"
           ( cd release-assets && sha256sum *.bin > SHA256SUMS.txt )
+          cp LICENSE THIRD_PARTY_NOTICES.md release-assets/
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -140,6 +141,8 @@ jobs:
           - \`bt-terminal-firmware-v$VERSION-safe.bin\` — networking only (no display/sound/LED),
             for first-contact bring-up on a device with no USB access.
           - \`SHA256SUMS.txt\` — checksums of the three images above.
+          - \`LICENSE\`, \`THIRD_PARTY_NOTICES.md\` — MIT license of this project's code, and the
+            licenses of the libraries linked into the images.
 
           The debug and safe builds expose an unauthenticated \`/update\` HTTP upload route — don't
           leave either installed on a device you care about.

@@ -1,8 +1,8 @@
 # Blocktrainer Terminal Custom Firmware
 
-A clean-room custom firmware for the **BT Clock / BT Terminal** (ESP32-S3) by
-[blocktrainer.de](https://btclock.blocktrainer.de), reverse-engineered from the stock image and
-rewritten from scratch as ordinary embedded C++. It has the same pages, data sources, web
+A custom firmware for the **BT Clock / BT Terminal** (ESP32-S3) by
+[blocktrainer.de](https://btclock.blocktrainer.de), reimplemented as ordinary embedded C++ from
+an analysis of the stock image (behaviour, settings keys, pin map), without copying its code. It has the same pages, data sources, web
 config page, OTA mechanism and NVS settings as the stock firmware, but none of its code — see
 [`firmware/`](firmware/README.md). It installs two ways: over the device's own OTA update, no
 flashing tools needed, or over USB with `esptool` if you have physical access to the board.
@@ -166,8 +166,19 @@ on the Mac instead, against the real code:
 
 What each harness covers and does not cover is in `firmware/host/README.md`.
 
+## License
+
+The code in this repository is released under the [MIT License](LICENSE). Third-party libraries
+that end up in the firmware image (LVGL, ArduinoJson, FastLED, LovyanGFX, the Arduino-ESP32 core
+and ESP-IDF) keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The MIT license covers this project's own code only. The name "Blocktrainer", the `blocktrainer.de`
+servers and APIs the firmware talks to, and the stock firmware itself belong to blocktrainer.de and
+are not covered by it. The web configuration page and the timezone labels are original to this
+project; nothing from the stock image is shipped.
+
 ## Disclaimer
 
 This is an independent reverse-engineering / interoperability project. It is not affiliated
-with blocktrainer.de. Don't distribute the firmware or any derivative of it; don't use this
-to bypass anything you're not authorized to modify.
+with blocktrainer.de. Don't distribute the stock firmware image; don't use this to bypass
+anything you're not authorized to modify. This is not legal advice.
