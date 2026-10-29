@@ -17,6 +17,7 @@ class HTTPClient {
     followRedirects_t redirects_ = HTTPC_DISABLE_FOLLOW_REDIRECTS;
     WiFiClient client_;
     int size_ = -1;
+    std::string user_agent_, extra_headers_;
 
     static double scale() { const char *e = getenv("HOST_TIMEOUT_SCALE"); return e ? atof(e) : 1.0; }
     static uint64_t now_ms() { return millis(); }
@@ -71,8 +72,8 @@ public:
     void setConnectTimeout(uint32_t ms) { connect_timeout_ = ms; }
     void setTimeout(uint32_t ms) { timeout_ = ms; }
     void setFollowRedirects(followRedirects_t f) { redirects_ = f; }
-    void addHeader(const char *, const char *) {}
-    void setUserAgent(const char *) {}
+    void addHeader(const char *name, const char *value) { extra_headers_ += std::string(name) + ": " + value + "\r\n"; }
+    void setUserAgent(const char *ua) { user_agent_ = ua; }
 
     int GET()
     {
@@ -86,7 +87,9 @@ public:
             std::string host = hostport.substr(0, colon);
             int port = colon == std::string::npos ? 80 : atoi(hostport.c_str() + colon + 1);
             if (!open(host, port)) return HTTPC_ERROR_CONNECTION_REFUSED;
-            std::string req = "GET " + path + " HTTP/1.1\r\nHost: " + hostport + "\r\nConnection: close\r\n\r\n";
+            std::string req = "GET " + path + " HTTP/1.1\r\nHost: " + hostport + "\r\n" +
+                              (user_agent_.empty() ? "" : "User-Agent: " + user_agent_ + "\r\n") + extra_headers_ +
+                              "Connection: close\r\n\r\n";
             send(client_.fd, req.data(), req.size(), 0);
             std::string location;
             int code = read_headers(location);

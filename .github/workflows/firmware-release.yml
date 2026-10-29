@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to build (e.g. 1.8.4). No release is created for a manual run."
+        description: "Version to build (e.g. 0.1.1). No release is created for a manual run."
         required: false
         default: "0.0.0-dev"
 
@@ -100,6 +100,8 @@ jobs:
         working-directory: firmware/host
         run: make ota-test
 
+      # The device finds updates by this asset name (OTA_ASSET_PREFIX/SUFFIX in firmware/src/config.h,
+      # matched in ota_check()): keep "bt-terminal-firmware-v<version>.bin" for the normal build.
       - name: Stage release assets
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -129,8 +131,9 @@ jobs:
           cat > "$NOTES_FILE" <<EOF
           Custom firmware for the BT Clock / BT Terminal (ESP32-S3), version $VERSION.
 
-          Built with the same toolchain, image format and partition table as the stock firmware;
-          installs over the device's own OTA update (see README.md, "Deploy via OTA interception").
+          Built with the same toolchain, image format and partition table as the stock firmware.
+          Installs over USB, or once over the stock OTA update (see README.md); after that the device
+          finds new versions here, in the GitHub releases.
           Passed the offline UI (LVGL + AddressSanitizer/UBSan) and OTA download test suites in
           \`firmware/host/\` before this release was built.
 

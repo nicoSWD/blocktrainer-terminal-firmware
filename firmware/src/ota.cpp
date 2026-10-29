@@ -17,11 +17,13 @@ bool ota_version_newer(const String &current, const String &remote)
     return false;
 }
 
-// Reads the manifest (esp-web-tools style):
-//   { "version": "x.y.z", "builds": [ { "chipFamily": "ESP32-S3",
-//       "parts": [ { "path": ".../firmware.bin", "offset": ... } ] } ] }
-// The ESP32-S3 build's first part whose path contains "firmware.bin" is the app image.
-// `stage` becomes OTA_AVAILABLE when the manifest version is newer than FIRMWARE_VERSION.
+// Asks GitHub for the latest release of this project (GET /releases/latest skips drafts and
+// prereleases). The response is a large object; only the tag and the assets are kept:
+//   { "tag_name": "v0.1.1", "assets": [ { "name": "bt-terminal-firmware-v0.1.1.bin",
+//       "browser_download_url": "https://github.com/.../bt-terminal-firmware-v0.1.1.bin" }, ... ] }
+// The firmware is the asset named OTA_ASSET_PREFIX + version + OTA_ASSET_SUFFIX; the -debug and -safe
+// builds and the checksum/license files next to it are ignored.
+// `stage` becomes OTA_AVAILABLE when that version is newer than FIRMWARE_VERSION.
 void ota_check()
 {
     DBG("ota: checking %s\n", URL_UPDATE);
@@ -38,9 +40,11 @@ void ota_check()
         DBG("ota: http.begin() failed\n");
         return;
     }
+    http.setUserAgent("bt-terminal-firmware/" FIRMWARE_VERSION);    // GitHub rejects requests without one
+    http.addHeader("Accept", "application/vnd.github+json");
     int code = http.GET();
     if (code != 200) {
-        DBG("ota: manifest HTTP %d\n", code);
+        DBG("ota: release lookup HTTP %d\n", code);
         ota.stage = OTA_IDLE;
         ota.active = false;
         http.end();
@@ -49,27 +53,31 @@ void ota_check()
     String payload = http.getString();
     http.end();
 
-    DynamicJsonDocument doc(2048);
-    DeserializationError err = deserializeJson(doc, payload);
+    StaticJsonDocument<256> filter;       // 5 slots (80 bytes on the device); roomy on purpose, an overflowing filter silently drops keys
+    filter["tag_name"] = true;
+    filter["assets"][0]["name"] = true;
+    filter["assets"][0]["browser_download_url"] = true;
+    DynamicJsonDocument doc(6144);
+    DeserializationError err = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
     if (err) {
-        DBG("ota: manifest JSON error %s\n", err.c_str());
+        DBG("ota: release JSON error %s\n", err.c_str());
         return;
     }
 
-    ota.remoteVersion = doc["version"] | "";
+    String version = doc["tag_name"] | "";
+    if (version.startsWith("v") || version.startsWith("V")) version = version.substring(1);
+    ota.remoteVersion = version;
     DBG("ota: remote %s, current %s\n", ota.remoteVersion.c_str(), FIRMWARE_VERSION);
 
     String url;
-    for (JsonObject build : doc["builds"].as<JsonArray>()) {
-        if (strcmp(build["chipFamily"] | "", "ESP32-S3") != 0) continue;
-        for (JsonObject part : build["parts"].as<JsonArray>()) {
-            const char *path = part["path"] | "";
-            if (strstr(path, "firmware.bin")) {
-                url = path;
+    if (!version.isEmpty()) {
+        String wanted = String(OTA_ASSET_PREFIX) + version + OTA_ASSET_SUFFIX;
+        for (JsonObject asset : doc["assets"].as<JsonArray>()) {
+            if (wanted == (asset["name"] | "")) {
+                url = asset["browser_download_url"] | "";
                 break;
             }
         }
-        break;
     }
     ota.firmwareUrl = url;
 
