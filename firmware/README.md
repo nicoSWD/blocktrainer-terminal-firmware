@@ -17,7 +17,7 @@ cd firmware
 Output: `.pio/build/wt32-sc01-plus/firmware.bin` (about 1.66 MB; the app slots are 3.3 MB).
 It is built with the same toolchain as the stock image (ESP-IDF 4.4.7, `default_8MB.csv`
 partitions), so the stock bootloader and partition table stay valid. A PlatformIO build is
-already correctly checksummed and SHA256-terminated: `scripts/patch.py` is not needed.
+already correctly checksummed and SHA256-terminated; no post-processing needed.
 
 ## Testing without the device
 
