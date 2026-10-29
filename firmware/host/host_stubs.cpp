@@ -3,7 +3,12 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <atomic>
+#ifdef __APPLE__
 #include <malloc/malloc.h>
+#else
+#include <malloc.h>
+#define malloc_size malloc_usable_size
+#endif
 #include "config.h"
 #include "net.h"
 #include "hw.h"
