@@ -1,4 +1,4 @@
-# BT Clock / BT Terminal Custom Firmware
+# Blocktrainer Terminal Custom Firmware
 
 A clean-room custom firmware for the **BT Clock / BT Terminal** (ESP32-S3) by
 [blocktrainer.de](https://btclock.blocktrainer.de), reverse-engineered from the stock image and
