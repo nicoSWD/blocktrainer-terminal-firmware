@@ -10,6 +10,11 @@ flashing tools needed, or over USB with `esptool` if you have physical access to
 > Educational / research use only. The stock firmware is copyright blocktrainer.de and is
 > **not** included in this repo.
 
+> **Use at your own risk.** This is unofficial, unsupported software provided as is, with no
+> warranty or guarantee of any kind. Flashing it can brick your device, void its warranty, or stop
+> it working with blocktrainer.de's services. You are solely responsible for what you do with it.
+> See [Disclaimer](#disclaimer).
+
 ## The device
 
 - **WT32-SC01 Plus** (ESP32-S3), 3.5" touch LCD
@@ -186,6 +191,23 @@ project; nothing from the stock image is shipped.
 
 ## Disclaimer
 
+**Use at your own risk.** This project is provided "as is", without warranty or guarantee of any
+kind, express or implied. That includes (but is not limited to) fitness for a particular purpose,
+correctness, reliability, security, availability, and continued compatibility with the device,
+its hardware, or any online service. Nothing here is promised to work, and nothing is supported.
+
+By building, installing or running this firmware you accept that:
+
+- It can fail in ways that leave a device unusable ("bricked"), lose its settings, or make it
+  behave unexpectedly. Keep a way to recover over USB (see "Safety & recovery") before you flash.
+- It may void your warranty and may break if blocktrainer.de changes its servers or APIs.
+- The authors and contributors accept no liability for any damage, data loss or other harm
+  arising from its use, to the extent permitted by law. The MIT license says the same.
+- Update downloads are not certificate-verified and images are not signed, so only install builds
+  you trust, from a network you trust.
+- The debug build exposes an unauthenticated `/update` upload route. Don't leave it installed on a
+  device on a network you don't control.
+
 This is an independent reverse-engineering / interoperability project. It is not affiliated
-with blocktrainer.de. Don't distribute the stock firmware image; don't use this to bypass
-anything you're not authorized to modify. This is not legal advice.
+with, endorsed by, or supported by blocktrainer.de. Don't distribute the stock firmware image;
+don't use this to bypass anything you're not authorized to modify. This is not legal advice.
