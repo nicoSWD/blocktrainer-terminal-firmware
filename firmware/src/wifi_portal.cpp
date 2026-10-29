@@ -4,6 +4,7 @@
 #include "wifi_link.h"
 #include "config.h"
 #include "bootguard.h"
+#include "wifi_scan.h"
 
 static const char *AP_NAME = "BTClock-Setup";
 
@@ -45,8 +46,9 @@ void wifi_portal_run()
     WiFi.softAP(AP_NAME);
 
     String options;
-    int n = WiFi.scanNetworks();
-    for (int i = 0; i < n; i++) options += "<option value=\"" + html_escape(WiFi.SSID(i)) + "\">";
+    WifiScan scan = wifi_scan(WIFI_SCAN_ATTEMPTS, [] { boot_guard_feed(); });
+    DBG("portal: scan found %d access points (code %d, %d tries)\n", (int)scan.aps.size(), scan.code, scan.attempts);
+    for (const WifiAp &ap : wifi_networks(scan.aps, 30)) options += "<option value=\"" + html_escape(ap.ssid) + "\">";
 
     WebServer server(80);
     server.on("/", HTTP_GET, [&] { server.send(200, "text/html", form_page("", options)); });

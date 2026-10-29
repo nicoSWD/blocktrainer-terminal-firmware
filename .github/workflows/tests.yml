@@ -54,6 +54,10 @@ jobs:
         working-directory: firmware/host
         run: make ota-test
 
+      - name: Offline Wi-Fi scan test
+        working-directory: firmware/host
+        run: make wifi-test
+
       - name: Offline UI test (LVGL render + ASan/UBSan stress)
         working-directory: firmware/host
         run: make -j"$(nproc)" run

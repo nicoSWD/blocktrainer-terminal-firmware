@@ -11,6 +11,7 @@
 #include "hw.h"
 #include "ota.h"
 #include "wifi_link.h"
+#include "wifi_scan.h"
 
 // ---------------------------------------------------------------- LVGL heap (see include/lv_alloc.h)
 
@@ -818,36 +819,53 @@ static void wizard_ask_password()
     lv_keyboard_set_textarea(kb, w_wizard_pass);
 }
 
-static void wizard_show_networks(int count)
+static std::vector<WifiAp> s_wizard_nets;       // what the list shows; a row remembers its index here
+
+static void wizard_rescan_button(lv_obj_t *parent, lv_align_t align, int x, int y)
+{
+    lv_obj_t *b = lv_btn_create(parent);
+    lv_obj_set_size(b, 150, 34);
+    lv_obj_align(b, align, x, y);
+    lv_obj_set_style_bg_color(b, COL_ORANGE, 0);
+    lv_obj_center(mk_label(b, "NEU SUCHEN", FONT_XS));
+    lv_obj_add_event_cb(b, [](lv_event_t *) { ui_show(UI_WIFI_WIZARD); }, LV_EVENT_CLICKED, nullptr);
+}
+
+static void wizard_show_networks(const std::vector<WifiAp> &found)
 {
     sys_clear();
+    s_wizard_nets = wifi_networks(found, 15);      // one row per network name, strongest first
     lv_obj_t *title = mk_label(s_sys, "WLAN AUSWAEHLEN", FONT_S, COL_ORANGE);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 10, 8);
+    if (s_wizard_nets.empty()) {                   // never leave a blank list: say so and offer another scan
+        lv_obj_t *msg = mk_label(s_sys, "KEINE NETZWERKE GEFUNDEN", FONT_S);
+        lv_obj_align(msg, LV_ALIGN_CENTER, 0, -40);
+        lv_obj_t *hint = mk_label(s_sys, "Ist der Router in Reichweite?", FONT_XS);
+        lv_obj_align(hint, LV_ALIGN_CENTER, 0, -5);
+        wizard_rescan_button(s_sys, LV_ALIGN_CENTER, 0, 45);
+        return;
+    }
     lv_obj_t *list = lv_list_create(s_sys);
     lv_obj_set_size(list, SCREEN_W - 20, SCREEN_H - 50);
     lv_obj_align(list, LV_ALIGN_BOTTOM_MID, 0, -5);
-    std::vector<String> seen;              // a network with several access points shows up once per access point
-    for (int i = 0; i < count && i < 15; i++) {
-        String ssid = WiFi.SSID(i);
-        if (ssid.isEmpty()) continue;
-        bool duplicate = false;
-        for (const String &s : seen) if (s == ssid) duplicate = true;
-        if (duplicate) continue;
-        seen.push_back(ssid);
-        lv_obj_t *b = lv_list_add_btn(list, LV_SYMBOL_WIFI, ui_tr(ssid.c_str()).c_str());
+    for (size_t i = 0; i < s_wizard_nets.size(); i++) {
+        lv_obj_t *b = lv_list_add_btn(list, LV_SYMBOL_WIFI, ui_tr(s_wizard_nets[i].ssid.c_str()).c_str());
         lv_obj_set_user_data(b, (void *)(intptr_t)(i + 1));
         lv_obj_add_event_cb(b, [](lv_event_t *e) {
-            int idx = (int)(intptr_t)lv_obj_get_user_data((lv_obj_t *)lv_event_get_target(e)) - 1;
-            g_ssid = WiFi.SSID(idx);
+            size_t idx = (size_t)(intptr_t)lv_obj_get_user_data((lv_obj_t *)lv_event_get_target(e)) - 1;
+            if (idx >= s_wizard_nets.size()) return;
+            g_ssid = s_wizard_nets[idx].ssid;
             ui_post(wizard_ask_password);       // replaces the screen this button lives on
         }, LV_EVENT_CLICKED, nullptr);
     }
+    wizard_rescan_button(s_sys, LV_ALIGN_TOP_RIGHT, -10, 5);
 }
 
 static void wizard_scan_task(void *)
 {
-    int n = WiFi.scanNetworks();
-    ui_post([n] { wizard_show_networks(n); });
+    WifiScan scan = wifi_scan();
+    DBG("wifi: wizard scan found %d access points (code %d, %d tries)\n", (int)scan.aps.size(), scan.code, scan.attempts);
+    ui_post([scan] { wizard_show_networks(scan.aps); });
     vTaskDelete(nullptr);
 }
 
@@ -867,7 +885,7 @@ static void show_screen(UiScreen s)
         case UI_WIFI_WIZARD: {
             sys_clear();
             lv_obj_center(mk_label(s_sys, "SUCHE NETZWERKE", FONT_S));
-            xTaskCreatePinnedToCore(wizard_scan_task, "WiFiScanTask", 0x2000, nullptr, 1, nullptr, 1);
+            xTaskCreatePinnedToCore(wizard_scan_task, "WiFiScanTask", 0x3000, nullptr, 1, nullptr, 1);
             break; }
         case UI_OTA_AVAILABLE: build_ota_available(); break;
         case UI_OTA_PROGRESS:  build_ota_progress(); break;
