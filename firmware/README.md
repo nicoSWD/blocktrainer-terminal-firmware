@@ -29,9 +29,31 @@ the built-in ones, real touch or panel behaviour, FreeRTOS scheduling or heap pr
 `host/README.md`. `make ota-test` in the same folder runs the real OTA code against a scripted server that
 stalls, trickles, closes early, redirects and fails (manifest handling, version compare, download loop).
 
+## Install over USB
+
+With physical access to the board: `pip install esptool`, put the device in download mode (hold
+BOOT, tap RESET, release BOOT), then write just the app image — the bootloader, partition table
+and stored settings are left alone:
+
+```bash
+esptool.py --chip esp32s3 --port <PORT> write_flash 0x10000 .pio/build/wt32-sc01-plus/firmware.bin
+```
+
+For a blank board with nothing on it, write all three images the build produces:
+
+```bash
+esptool.py --chip esp32s3 --port <PORT> write_flash \
+  0x0     .pio/build/wt32-sc01-plus/bootloader.bin \
+  0x8000  .pio/build/wt32-sc01-plus/partitions.bin \
+  0x10000 .pio/build/wt32-sc01-plus/firmware.bin
+```
+
+Same commands with a stock `firmware.bin` (from `scripts/fetch.sh`, repo root) restore stock, or
+recover a device that's stuck. See the repo README's "Install over USB" for the full walkthrough.
+
 ## Install over OTA
 
-Same flow as the repo README (section 7). The only difference is the image:
+Same flow as the repo README. The only difference is the image:
 
 ```bash
 cp firmware/.pio/build/wt32-sc01-plus/firmware.bin patched_firmware.bin
@@ -45,10 +67,8 @@ update. The flip side: **for every new custom build, raise `FIRMWARE_VERSION` in
 device sees nothing newer. Going back to stock over OTA needs a manifest version above the
 installed one (serve the stock `firmware.bin`).
 
-**Before the first flash, make sure you can recover over USB.** The realistic failure is a panel
-that initialises but stays blank. Put the ESP32-S3 in download mode (hold BOOT, tap RESET) and
-`esptool write_flash 0x10000 <image>.bin` restores either image; the stock images are in the
-repo root after `scripts/fetch.sh`.
+**Before the first OTA install, make sure you can recover over USB** (above). The realistic
+failure is a panel that initialises but stays blank.
 
 ## Reliability
 

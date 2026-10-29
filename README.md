@@ -4,8 +4,8 @@ A clean-room custom firmware for the **BT Clock / BT Terminal** (ESP32-S3) by
 [blocktrainer.de](https://btclock.blocktrainer.de), reverse-engineered from the stock image and
 rewritten from scratch as ordinary embedded C++. It has the same pages, data sources, web
 config page, OTA mechanism and NVS settings as the stock firmware, but none of its code — see
-[`firmware/`](firmware/README.md). It installs the same way any update does: over the device's
-own OTA, no flashing tools or USB access required.
+[`firmware/`](firmware/README.md). It installs two ways: over the device's own OTA update, no
+flashing tools needed, or over USB with `esptool` if you have physical access to the board.
 
 > Educational / research use only. The stock firmware is copyright blocktrainer.de and is
 > **not** included in this repo.
@@ -34,7 +34,7 @@ The panel pins, touch, I2S and LED details above were read from the decompile
 chip names are identified from their init data and I2C address, not from strings.
 No RTC chip, sensors, or SD card — time is NTP, config is NVS.
 
-## Build and install
+## Build
 
 The firmware itself, how to build it, the three build environments (normal, `debug` with serial
 logging forced on, `safe` networking-only for first bring-up), and the offline UI/OTA test
@@ -50,10 +50,42 @@ toolchain, partition table and image format as the stock firmware (ESP-IDF 4.4.7
 `default_8MB.csv`), so it installs and boots exactly like a stock update — no byte-patching,
 checksum recomputation or other post-processing needed.
 
-Installing it is the same OTA interception described below: point `mitm_firmware.py` at the
-built `firmware.bin` and let the device update itself.
+Install it either over USB (below) or over the device's own OTA update (further down).
 
-## Deploy via OTA interception
+## Install over USB
+
+Needs physical access to the board and a USB cable. Install `esptool` once:
+
+```bash
+pip install esptool
+```
+
+1. Connect the device and put it in download mode: hold the **BOOT** button, tap **RESET**, then
+   release **BOOT**. It enumerates as a new serial port; note which one.
+2. Optional, confirms the connection before writing anything:
+   ```bash
+   esptool.py --chip esp32s3 --port <PORT> chip_id
+   ```
+3. Write the firmware. A device that's already running the stock firmware (or an earlier build of
+   this one) only needs the app image rewritten — the bootloader, partition table and stored
+   settings (Wi-Fi credentials, preferences) are left as they are:
+   ```bash
+   esptool.py --chip esp32s3 --port <PORT> write_flash 0x10000 firmware/.pio/build/wt32-sc01-plus/firmware.bin
+   ```
+   A blank board with nothing on it yet needs all three images the build produces, written at
+   their respective offsets:
+   ```bash
+   esptool.py --chip esp32s3 --port <PORT> write_flash \
+     0x0     firmware/.pio/build/wt32-sc01-plus/bootloader.bin \
+     0x8000  firmware/.pio/build/wt32-sc01-plus/partitions.bin \
+     0x10000 firmware/.pio/build/wt32-sc01-plus/firmware.bin
+   ```
+4. The device resets and boots the new image on its own once the write finishes.
+
+This is also how you go back to stock, or recover a device: run the same commands with the stock
+`firmware.bin` (from `scripts/fetch.sh`) in place of the custom one.
+
+## Install over OTA
 
 The device checks `firmware.json` for a newer version, then downloads `firmware.bin`.
 Both are HTTPS, so you need a MITM the device trusts (the device ships a custom CA).
@@ -111,34 +143,14 @@ wrong with a build, three layers catch it:
    before committing; a corrupt image is rejected and the old firmware stays put.
 2. **Boot-time rollback**, rollback support is compiled in; a crashing new app can auto-roll
    back to the previous app after a few failed boots (bootloader-dependent).
-3. **USB download mode**, the ESP32-S3 ROM bootloader is un-brickable. Hold BOOT + reset,
-   re-flash any firmware with `esptool.py write_flash`. Recovery is guaranteed unless secure
-   boot is enabled with a lost key (this device has no secure boot) or the USB/BOOT pins are
-   physically unreachable.
+3. **USB download mode**, the ESP32-S3 ROM bootloader is un-brickable: see "Install over USB"
+   above. Recovery is guaranteed unless secure boot is enabled with a lost key (this device has
+   no secure boot) or the USB/BOOT pins are physically unreachable.
 
 The custom firmware also has its own layers for when USB isn't an option in practice (it rarely
 is, once a device is deployed): a boot watchdog, a crash counter that drops into a
 display/sound/LED-free safe mode after repeated crashes, and an `/ota` and `/update` HTTP
 endpoint that work without touching the screen. See `firmware/README.md`'s Reliability section.
-
-## Repo layout
-
-```
-scripts/   fetch the stock firmware, unpack it; mitmproxy addon for OTA interception
-ghidra/    Ghidra 12.1.4 + ghidra-mcp setup (headless, arm64 decompiler); functions.tsv export
-firmware/  the custom firmware; firmware/host/ is an offline UI and OTA test harness
-```
-
-The downloaded/extracted stock firmware (`*.bin`, `*.elf`, `extracted/`) is gitignored, since it's
-copyrighted and not ours to commit — see `.gitignore`. `firmware/` is our own code and is tracked
-normally, aside from build artifacts and `firmware/include/secrets.h` (local Wi-Fi credentials,
-see `firmware/README.md`).
-
-`ghidra/functions.tsv` holds the function annotations (address, name, symbol source) made during
-reverse-engineering: manually created functions and renames on top of auto-analysis. It contains
-only addresses and names, no firmware bytes. The Ghidra project itself is not committed because it
-embeds the firmware; `ghidra/apply_functions.java` and `ghidra/export_functions.java` reproduce or
-re-export the annotations against a freshly imported project.
 
 ## Testing the custom firmware offline
 
