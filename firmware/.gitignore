@@ -1,0 +1,4 @@
+.pio/
+include/secrets.h
+host/out/
+host/build/

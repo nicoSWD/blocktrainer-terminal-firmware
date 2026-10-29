@@ -10,7 +10,7 @@ redeploy a modified firmware over the device's own OTA update, no flashing tools
 ## The device
 
 - **WT32-SC01 Plus** (ESP32-S3), 3.5" touch LCD
-- ESP-IDF v4.4.7, Arduino (PlatformIO), LovyanGFX graphics
+- ESP-IDF v4.4.7, Arduino (PlatformIO), LVGL 8 UI on a LovyanGFX panel driver
 - Shows Bitcoin data (price, difficulty, fees, mempool) + hosts a web config page
 - OTA update from `https://btclock.blocktrainer.de/v2/firmware/firmware.json`
 
@@ -20,13 +20,16 @@ redeploy a modified firmware over the device's own OTA update, no flashing tools
 |---|---|---|
 | MCU | ESP32-S3 (dual Xtensa LX7), 8 MB PSRAM | firmware (`chipFamily`, `psramInit`) |
 | Flash | 8 MB | partition table spans `0x0–0x800000` |
-| Display | 3.5" IPS, **ST7701S**, 480×320, 8-bit parallel (i80) | LovyanGFX `Bus_Parallel8` + `esp_lcd_panel_io_i80` |
-| Touch | **FT6336U** capacitive, I2C | `esp32-hal-i2c`, `i2cInit` |
+| Display | 3.5" IPS, **ST7796**, 320×480 panel used as 480×320 (rotation 1 or 3), 8-bit parallel | LovyanGFX `Bus_Parallel8`; the ST7796 init table is in the image (`3c1b164c`) |
+| Touch | FT6336U-class capacitive (FT5x06 protocol), I2C port 0, address `0x38`, SDA 6 / SCL 5 / INT 7 | LovyanGFX touch config in the LGFX constructor (`4200af00`) |
 | WiFi | ESP32-S3 built-in 2.4 GHz 802.11b/g/n | WiFi stack |
-| Buzzer | PWM/LEDC (`buzzer_click`, `buzzer_alert`) | strings |
+| Buzzer | I2S speaker amp, 22.05 kHz 16-bit stereo, BCK 36 / WS 35 / DOUT 37 | `buzzer_click`, `buzzer_alert`, I2S setup `42032cac` |
+| LEDs | 8 addressable LEDs (WS2812 or WS2811, `ledStripType`), data pin 10, FastLED | `42033e90` |
 
-Driver IC + touch controller names are inferred from the board; they are not
-named in firmware strings. No RTC chip, sensors, or SD card — time is NTP,
+The panel pins, touch, I2S and LED details above were read from the decompile
+(see `firmware/HARDWARE.md` for the exact addresses and values); the panel and touch
+chip names are identified from their init data and I2C address, not from strings.
+No RTC chip, sensors, or SD card — time is NTP,
 config is NVS.
 
 ## Workflow
@@ -108,7 +111,7 @@ python3 scripts/build_elf.py
 ```
 
 Reconstructs a minimal ELF32 (`EM_XTENSA`) from the dumped segments, with the entry point
-and symbols for the display functions (`draw_price_page`, `draw_fees_page`, `lgfx_drawString`, …).
+and symbols for the display functions (`draw_fees_page`, `lv_label_set_text`, … after the LVGL renaming described in `reconstructed/MODULES.md`).
 Ghidra 11+ has native Xtensa, so it loads this directly.
 
 ## 5. Decompile via Ghidra MCP
@@ -135,6 +138,19 @@ Point your MCP client at it:
 ```json
 { "mcpServers": { "ghidra": { "type": "http", "url": "http://<kali-ip>:8081/mcp" } } }
 ```
+
+`ghidra/functions.tsv` holds the function annotations (address, name, symbol source) made on
+top of auto-analysis: manually created functions and renames. It contains only addresses and
+names, no firmware bytes. The Ghidra project itself is not committed because it embeds the
+firmware. Re-apply the annotations to a freshly imported project, or re-export them after
+editing:
+
+```bash
+analyzeHeadless ~/ghidra_projects btclock -process firmware.elf -noanalysis -scriptPath ghidra -postScript apply_functions.java ghidra/functions.tsv
+analyzeHeadless ~/ghidra_projects btclock -process firmware.elf -noanalysis -scriptPath ghidra -postScript export_functions.java ghidra/functions.tsv
+```
+
+Stop the MCP server before running these, since both lock the project.
 
 From there the agent can call `decompile_function`, `rename_function`, `get_functions`, etc.
 
@@ -215,9 +231,34 @@ If a patch is ever broken, three layers catch it:
 ```
 scripts/   fetch, unpack, cross-ref, patch, mitmproxy addon
 ghidra/    Ghidra 12.1.4 + ghidra-mcp setup (headless, arm64 decompiler)
+firmware/  custom PlatformIO firmware; firmware/host/ is an offline UI test harness
 ```
 
 Firmware and all derived artifacts are gitignored, see `.gitignore`.
+
+## Testing the custom firmware UI offline
+
+The device cannot be watched or debugged over USB, so the UI of the custom firmware in `firmware/`
+is tested on the Mac instead. `firmware/host/` compiles the real LVGL source and the UI files
+(`ui_core.cpp`, `ui_pages.cpp`, `ui_menu.cpp`) with stubbed hardware, renders every screen to a PNG
+and runs a stress test under AddressSanitizer and UBSan:
+
+```bash
+cd firmware/host && make -j8 run      # PNGs land in firmware/host/out/
+```
+
+The first run found and fixed these in `firmware/src/`:
+
+- Chart page: NaN, inf or huge values in the chart JSON caused an undefined float cast (the only
+  sanitizer hit); price, sats, fee and difficulty casts are now clamped for the ESP32's 32-bit `long`.
+- Text that ran off or was clipped on the 480x320 screen: fees captions, stream bar title, SSID on the
+  Wi-Fi status screens, OTA error text, password screen title, two menu text lines.
+- The Wi-Fi lost banner covered the news author line (banner is now 20 px, author line moved up).
+- Converter: the caption of the active (orange) field was unreadable gray.
+
+The stress run reports no sanitizer findings and no growth of the LVGL heap (LeakSanitizer does not
+exist on macOS arm64, so heap blocks are counted instead). What the harness does and does not cover
+is in `firmware/host/README.md`.
 
 ## Disclaimer
 
