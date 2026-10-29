@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history and tags, for the changelog in the release notes
 
       - name: Resolve version
         id: version
@@ -74,12 +76,12 @@ jobs:
       - name: Install host test toolchain
         run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends clang build-essential
 
-      - name: Build firmware (normal, debug, safe)
+      - name: Build firmware (normal, debug)
         working-directory: firmware
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          for env in wt32-sc01-plus debug safe; do
+          for env in wt32-sc01-plus debug; do
             echo "::group::pio run -e $env"
             FLAGS='-DFIRMWARE_VERSION=\"'"$VERSION"'\"'
             PLATFORMIO_BUILD_FLAGS="$FLAGS" pio run -e "$env"
@@ -109,7 +111,6 @@ jobs:
           mkdir -p release-assets
           cp firmware/.pio/build/wt32-sc01-plus/firmware.bin "release-assets/bt-terminal-firmware-v${VERSION}.bin"
           cp firmware/.pio/build/debug/firmware.bin           "release-assets/bt-terminal-firmware-v${VERSION}-debug.bin"
-          cp firmware/.pio/build/safe/firmware.bin            "release-assets/bt-terminal-firmware-v${VERSION}-safe.bin"
           ( cd release-assets && sha256sum *.bin > SHA256SUMS.txt )
           cp LICENSE THIRD_PARTY_NOTICES.md release-assets/
 
@@ -141,15 +142,27 @@ jobs:
           - \`bt-terminal-firmware-v$VERSION.bin\` — the firmware to install.
           - \`bt-terminal-firmware-v$VERSION-debug.bin\` — same firmware, serial logging forced on.
             For bring-up/debugging only.
-          - \`bt-terminal-firmware-v$VERSION-safe.bin\` — networking only (no display/sound/LED),
-            for first-contact bring-up on a device with no USB access.
-          - \`SHA256SUMS.txt\` — checksums of the three images above.
+          - \`SHA256SUMS.txt\` — checksums of the two images above.
           - \`LICENSE\`, \`THIRD_PARTY_NOTICES.md\` — MIT license of this project's code, and the
             licenses of the libraries linked into the images.
 
-          The debug and safe builds expose an unauthenticated \`/update\` HTTP upload route — don't
-          leave either installed on a device you care about.
+          The debug build exposes an unauthenticated \`/update\` HTTP upload route — don't leave it
+          installed on a device you care about.
+
+          ## Changes
+
           EOF
+
+          # Changelog: every commit since the previous version tag (all of history for the first release).
+          # Subjects are appended straight from git, not through the heredoc, so $ or backticks in a
+          # commit message stay literal. Merge commits are skipped; the commits they brought in are listed.
+          PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${TAG}^" 2>/dev/null || true)"
+          if [ -n "$PREV" ]; then RANGE="${PREV}..${TAG}"; else RANGE="$TAG"; fi
+          git log --no-merges --pretty='format:- %s (%h)' "$RANGE" >> "$NOTES_FILE"
+          printf '\n' >> "$NOTES_FILE"
+          if [ -n "$PREV" ]; then
+            printf '\n**Full diff:** https://github.com/%s/compare/%s...%s\n' "$GITHUB_REPOSITORY" "$PREV" "$TAG" >> "$NOTES_FILE"
+          fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/* --clobber
