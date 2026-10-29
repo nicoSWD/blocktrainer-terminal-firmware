@@ -3,9 +3,7 @@
 A clean, from-scratch firmware for the same device (WT32-SC01 Plus class board, ESP32-S3,
 3.5" ST7796 touch panel). It shows the same nine pages, uses the same data sources, web
 configuration page, OTA mechanism and NVS settings as the stock firmware, but is ordinary
-embedded C++ with ordinary names. `../research/` holds the fidelity-first decompile
-reconstruction this was ported from (addresses, function tables, the mechanical LVGL
-translation), kept as a research record, not built or maintained.
+embedded C++ with ordinary names.
 
 Hardware pins and the decompile addresses they came from: [HARDWARE.md](HARDWARE.md).
 
@@ -20,10 +18,6 @@ Output: `.pio/build/wt32-sc01-plus/firmware.bin` (about 1.66 MB; the app slots a
 It is built with the same toolchain as the stock image (ESP-IDF 4.4.7, `default_8MB.csv`
 partitions), so the stock bootloader and partition table stay valid. A PlatformIO build is
 already correctly checksummed and SHA256-terminated: `scripts/patch.py` is not needed.
-
-For the first run on a device use `pio run -e debug` (same firmware with serial logging forced
-on) and follow [FIRST_FLASH.md](FIRST_FLASH.md): backup, USB flash, what to check, what to do
-when something is off, and the way back.
 
 ## Testing without the device
 
