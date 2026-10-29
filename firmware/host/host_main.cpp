@@ -1,6 +1,6 @@
 // Host test driver for the LVGL UI of the firmware.
 //
-//   host_test render [outdir]   renders every screen to PNG (via PPM + sips) and runs layout checks
+//   host_test render [outdir]   renders every screen to PNG and runs layout checks
 //   host_test stress [seed]     ASAN/UBSan stress run, heap accounting through the LVGL heap hooks
 //   host_test all               both (default)
 //
@@ -14,6 +14,8 @@
 #include <math.h>
 #include <limits.h>
 #include <set>
+#include <vector>
+#include <algorithm>
 #include "host_api.h"
 
 // ---------------------------------------------------------------- loop (mirrors ui_task)
@@ -294,6 +296,73 @@ static void check_layout(const char *name)
 
 static std::string g_outdir = "out";
 
+// Minimal PNG writer (stored deflate blocks, no zlib), so the render step needs no external converter.
+static uint32_t crc32_update(uint32_t crc, const uint8_t *p, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        crc ^= p[i];
+        for (int k = 0; k < 8; k++) crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1)));
+    }
+    return crc;
+}
+
+static void png_chunk(FILE *f, const char *type, const std::vector<uint8_t> &data)
+{
+    uint8_t len[4] = { (uint8_t)(data.size() >> 24), (uint8_t)(data.size() >> 16), (uint8_t)(data.size() >> 8), (uint8_t)data.size() };
+    fwrite(len, 1, 4, f);
+    uint32_t crc = crc32_update(0xFFFFFFFFu, (const uint8_t *)type, 4);
+    fwrite(type, 1, 4, f);
+    if (!data.empty()) {
+        crc = crc32_update(crc, data.data(), data.size());
+        fwrite(data.data(), 1, data.size(), f);
+    }
+    crc ^= 0xFFFFFFFFu;
+    uint8_t c[4] = { (uint8_t)(crc >> 24), (uint8_t)(crc >> 16), (uint8_t)(crc >> 8), (uint8_t)crc };
+    fwrite(c, 1, 4, f);
+}
+
+static void write_png(const char *path)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f) { fprintf(stderr, "cannot write %s\n", path); exit(2); }
+
+    std::vector<uint8_t> raw;                  // one filter byte (0) + RGB per scanline
+    raw.reserve((size_t)HOST_H * (1 + HOST_W * 3));
+    for (int y = 0; y < HOST_H; y++) {
+        raw.push_back(0);
+        for (int x = 0; x < HOST_W; x++) {
+            uint16_t v = g_host_fb[y * HOST_W + x];
+            raw.push_back((uint8_t)(((v >> 11) & 31) * 255 / 31));
+            raw.push_back((uint8_t)(((v >> 5) & 63) * 255 / 63));
+            raw.push_back((uint8_t)((v & 31) * 255 / 31));
+        }
+    }
+
+    std::vector<uint8_t> z = { 0x78, 0x01 };   // zlib header, then stored blocks
+    for (size_t pos = 0; pos < raw.size() || pos == 0;) {
+        size_t n = std::min<size_t>(65535, raw.size() - pos);
+        bool last = pos + n >= raw.size();
+        z.push_back(last ? 1 : 0);
+        z.push_back((uint8_t)n); z.push_back((uint8_t)(n >> 8));
+        z.push_back((uint8_t)~n); z.push_back((uint8_t)(~n >> 8));
+        z.insert(z.end(), raw.begin() + pos, raw.begin() + pos + n);
+        pos += n;
+        if (last) break;
+    }
+    uint32_t a = 1, b = 0;
+    for (uint8_t v : raw) { a = (a + v) % 65521; b = (b + a) % 65521; }
+    uint32_t adler = (b << 16) | a;
+    for (int sh = 24; sh >= 0; sh -= 8) z.push_back((uint8_t)(adler >> sh));
+
+    static const uint8_t sig[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
+    fwrite(sig, 1, 8, f);
+    std::vector<uint8_t> ihdr = { 0, 0, (uint8_t)(HOST_W >> 8), (uint8_t)HOST_W, 0, 0, (uint8_t)(HOST_H >> 8), (uint8_t)HOST_H, 8, 2, 0, 0, 0 };
+    png_chunk(f, "IHDR", ihdr);
+    png_chunk(f, "IDAT", z);
+    png_chunk(f, "IEND", {});
+    fclose(f);
+}
+
 static void shot(const char *name)
 {
     lv_obj_update_layout(lv_scr_act());
@@ -302,18 +371,8 @@ static void shot(const char *name)
     lv_refr_now(nullptr);
     check_layout(name);
 
-    std::string ppm = g_outdir + "/" + name + ".ppm", png = g_outdir + "/" + name + ".png";
-    FILE *f = fopen(ppm.c_str(), "wb");
-    if (!f) { fprintf(stderr, "cannot write %s\n", ppm.c_str()); exit(2); }
-    fprintf(f, "P6\n%d %d\n255\n", HOST_W, HOST_H);
-    for (int i = 0; i < HOST_W * HOST_H; i++) {
-        uint16_t v = g_host_fb[i];
-        uint8_t px[3] = { (uint8_t)(((v >> 11) & 31) * 255 / 31), (uint8_t)(((v >> 5) & 63) * 255 / 63), (uint8_t)((v & 31) * 255 / 31) };
-        fwrite(px, 1, 3, f);
-    }
-    fclose(f);
-    std::string cmd = "sips -s format png '" + ppm + "' --out '" + png + "' >/dev/null 2>&1 && rm -f '" + ppm + "'";
-    if (system(cmd.c_str()) != 0) fprintf(stderr, "sips failed for %s\n", ppm.c_str());
+    std::string png = g_outdir + "/" + name + ".png";
+    write_png(png.c_str());
     g_shots++;
     printf("  shot %s.png\n", name);
 }
