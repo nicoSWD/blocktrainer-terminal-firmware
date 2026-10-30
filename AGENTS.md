@@ -35,6 +35,10 @@ See the table in `firmware/README.md` ("Layout" section) for the file-to-role ma
 
 ## Conventions
 
+- Formatting is `clang-format` (config: `firmware/.clang-format`), enforced in CI. Run
+  `scripts/format.sh` before committing (`--check` to verify). Install the pinned version with
+  `firmware/.venv/bin/pip install clang-format==23.1.3`; a different version can format differently.
+
 - No comments explaining *what* code does; only *why*, for non-obvious constraints
   (hardware quirks, a specific bug workaround, an invariant that would surprise a reader).
 - Keep the host test suite (`firmware/host/`) in sync with any change to `src/` logic it
