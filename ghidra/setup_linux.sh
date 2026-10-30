@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# One-shot Ghidra + ghidra-mcp setup for Kali / aarch64 (ARM64 Linux).
+# One-shot Ghidra + ghidra-mcp setup for aarch64 (ARM64 Linux).
 # Installs: Java 21, Ghidra 12.1.4, the ghidra-mcp extension + bridge, and the
 # ARM64 decompiler native binary (Ghidra ships none for linux_arm_64).
 #
-# Usage:  sudo ./setup_kali.sh     (or run steps manually if you dislike sudo)
+# Usage:  sudo ./setup_linux.sh     (or run steps manually if you dislike sudo)
 set -euo pipefail
 
 GHIDRA_VERSION="12.1.4"

@@ -124,7 +124,7 @@ device ──TLS(mitmproxy cert)──▶ mitmproxy ──TLS(real cert)──�
 3. mitmproxy (`--mode transparent`) terminates TLS with its own CA cert, then opens its own
    TLS connection to the real server. Two tunnels, plaintext in the middle.
 
-The intercept box (Kali, the AP/gateway) needs:
+The intercept box (any Linux machine acting as the AP/gateway) needs:
 
 ```bash
 sudo sysctl -w net.ipv4.ip_forward=1
