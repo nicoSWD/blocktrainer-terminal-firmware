@@ -71,40 +71,21 @@ void wifi_start_events() { WiFi.onEvent(on_wifi_event); }
 
 static const uint32_t CONNECT_TIMEOUT_MS = 20000;
 
-// Scans, picks the strongest access point with the saved SSID and connects to its channel
-// and BSSID (a plain begin() when the scan finds nothing). Waits up to 20 s per attempt.
-// The initial attempt after boot runs once; later attempts repeat every 2 s.
+// One attempt is wifi_join(): scan, pin the strongest access point with the saved SSID (a plain begin()
+// when the scan finds nothing) and wait up to 20 s. The initial attempt after boot runs once; later
+// attempts repeat every 2 s.
 static void reconnect_task(void *param)
 {
     bool initial = param != nullptr;
     DBG("wifi: reconnecting\n");
     for (int attempt = 1;; attempt++) {
         DBG("wifi: attempt %d\n", attempt);
-        WiFi.disconnect(true, false);
-        delay(100);
-
-        WifiScan scan = wifi_scan(2);
-        const WifiAp *best = wifi_find_ap(scan.aps, g_ssid);
-        DBG("wifi: scan found %d access points (code %d, %d tries)\n", (int)scan.aps.size(), scan.code, scan.attempts);
-        if (best) {
-            DBG("wifi: strongest AP for %s on channel %d (%d dBm)\n", g_ssid.c_str(), best->channel, best->rssi);
-            uint8_t bssid[6];
-            memcpy(bssid, best->bssid, 6);
-            WiFi.begin(g_ssid.c_str(), g_pass.c_str(), best->channel, bssid, true);
-        } else {
-            DBG("wifi: SSID not in scan, plain connect\n");
-            WiFi.begin(g_ssid.c_str(), g_pass.c_str());
-        }
-
-        bool ok = false;
-        for (uint32_t t0 = millis(); millis() - t0 < CONNECT_TIMEOUT_MS; delay(250)) {
-            if (WiFi.status() == WL_CONNECTED) {
-                WiFi.setAutoReconnect(false);
-                ok = true;
-                break;
-            }
-        }
-        if (ok) {
+        WifiJoin j = wifi_join(g_ssid, g_pass, CONNECT_TIMEOUT_MS);
+        DBG("wifi: scan found %d access points (code %d)\n", j.scan_count, j.scan_code);
+        if (j.found) DBG("wifi: strongest AP for %s on channel %d (%d dBm)\n", g_ssid.c_str(), j.channel, j.rssi);
+        else DBG("wifi: SSID not in scan, plain connect\n");
+        if (j.ok) {
+            WiFi.setAutoReconnect(false);
             DBG("wifi: connected\n");
             g_wifi_ok = true;
             break;

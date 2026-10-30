@@ -1,0 +1,55 @@
+# Agent notes
+
+Custom ESP32-S3 firmware for the BT Clock / BT Terminal (WT32-SC01 Plus class board). Main
+code lives in `firmware/`; see `firmware/README.md` for the full picture (build, install, OTA,
+reliability design). This file is the short version for an agent working in the repo.
+
+## Build
+
+```bash
+cd firmware
+.venv/bin/pio run              # default env: wt32-sc01-plus
+.venv/bin/pio run -e debug      # serial logging build
+.venv/bin/pio run -e safe       # networking only, no display/sound/LED
+```
+
+If PlatformIO isn't installed, `pip install platformio` into a venv first; don't assume it's
+on PATH.
+
+## Tests (no hardware needed)
+
+```bash
+cd firmware/host
+make -j8 run          # renders every page/status screen to out/*.png, ASan/UBSan stress test
+make wifi-test        # wifi_join()/scan/radio-mutex unit tests
+make ota-test          # OTA against a scripted server (stalls, trickles, early close, redirects)
+```
+
+Run all three before opening a PR that touches `src/`. `make run` output PNGs are worth
+actually looking at (`host/out/`) when a change touches layout, not just a passing exit code.
+
+## Layout
+
+See the table in `firmware/README.md` ("Layout" section) for the file-to-role map
+(`wifi_link.*`, `ui_core.cpp`, `bootguard.*`, etc.). Don't duplicate it here; it drifts.
+
+## Conventions
+
+- No comments explaining *what* code does; only *why*, for non-obvious constraints
+  (hardware quirks, a specific bug workaround, an invariant that would surprise a reader).
+- Keep the host test suite (`firmware/host/`) in sync with any change to `src/` logic it
+  covers — the host build compiles the real `.cpp` files, so new/changed logic paths usually
+  need new assertions there rather than a hardware test.
+- `include/secrets.h` is gitignored and holds the real built-in Wi-Fi SSID/password
+  (`BUILTIN_WIFI_SSID`/`BUILTIN_WIFI_PASS`); never commit it or print its contents.
+- Wi-Fi/OTA/boot reliability is the highest-stakes part of this codebase: the device has no
+  USB access in normal testing, so a boot that can't reach the wizard or the web server is
+  hard to recover from. Changes there should go through the host tests, not just "builds
+  clean".
+
+## Git / PRs
+
+- Base branch is `main`. Open PRs against it.
+- Don't touch the MITM/OTA-bridge path (`scripts/mitm_firmware.py`, mitmproxy setup) or do
+  anything resembling TLS interception setup without the user explicitly asking in that
+  session.

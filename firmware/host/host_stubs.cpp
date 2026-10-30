@@ -103,6 +103,7 @@ static const char *SCAN[] = {
     "o2-WLAN42",
 };
 int WiFiClass::scanNetworks(bool, bool, bool, uint32_t) { delay(2000); return g_host_scan_count; }   // a scan takes a few seconds
+wl_status_t WiFiClass::begin(const char *, const char *, int32_t, const uint8_t *, bool) { return WL_DISCONNECTED; }
 bool WiFiClass::disconnect(bool, bool) { return true; }
 void WiFiClass::scanDelete() {}
 int32_t WiFiClass::channel(int i) { return 1 + (i * 5) % 13; }

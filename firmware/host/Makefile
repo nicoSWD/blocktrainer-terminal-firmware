@@ -105,9 +105,9 @@ ota-test: $(BUILD)/ota_test
 # The real wifi_scan.cpp against a scripted radio and a virtual clock (wifi_test/): scans that fail or come
 # back empty, a radio that is busy joining, results the driver freed, duplicate and hidden networks, limits.
 #   make wifi-test
-WIFI_FLAGS := -g -O1 -std=gnu++17 $(SAN_FATAL) -Wall -Wextra -Wno-unused-parameter -Ishim -I$(FW)/include -I$(FW)/src -Iwifi_test
+WIFI_FLAGS := -g -O1 -std=gnu++17 -pthread $(SAN_FATAL) -Wall -Wextra -Wno-unused-parameter -Ishim -I$(FW)/include -I$(FW)/src -Iwifi_test
 
-$(BUILD)/wifi_test: $(FW)/src/wifi_scan.cpp $(FW)/src/wifi_scan.h wifi_test/wifi_test.cpp wifi_test/wifi_test_stubs.cpp wifi_test/wifi_test_radio.h shim/*.h
+$(BUILD)/wifi_test: $(FW)/src/wifi_scan.cpp $(FW)/src/wifi_scan.h wifi_test/wifi_test.cpp wifi_test/wifi_test_stubs.cpp wifi_test/wifi_test_radio.h shim/*.h shim/freertos/*.h
 	@mkdir -p $(BUILD)
 	$(CXX) $(WIFI_FLAGS) $(FW)/src/wifi_scan.cpp wifi_test/wifi_test.cpp wifi_test/wifi_test_stubs.cpp -o $@
 

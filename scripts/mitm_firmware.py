@@ -16,7 +16,7 @@ from mitmproxy import http
 from mitmproxy import ctx
 
 PATCHED_FIRMWARE = "patched_firmware.bin"   # path to our firmware (relative to cwd, or absolute)
-FAKE_VERSION = "1.8.4"                      # must compare > the stock firmware's version (1.8.2); unrelated to the custom FIRMWARE_VERSION
+FAKE_VERSION = "1.8.5"                      # must compare > the stock firmware's version (1.8.2); unrelated to the custom FIRMWARE_VERSION
 
 JSON_PATH = "/v2/firmware/firmware.json"
 BIN_PATH = "/v2/firmware/firmware.bin"
