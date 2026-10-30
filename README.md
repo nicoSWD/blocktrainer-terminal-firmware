@@ -21,6 +21,9 @@ flashing tools needed, or over USB with `esptool` if you have physical access to
 |---|---|
 | <img src="docs/screenshots/price-chart.png" width="400" alt="Price chart page"> | <img src="docs/screenshots/block-height.png" width="400" alt="Block height page"> |
 
+The other pages (price, difficulty, fees, clock, converter, news, miner) are in
+[`docs/screenshots/`](docs/screenshots/).
+
 ## The device
 
 - **WT32-SC01 Plus** (ESP32-S3), 3.5" touch LCD
