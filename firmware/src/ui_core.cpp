@@ -291,7 +291,7 @@ lv_obj_t *mk_box(lv_obj_t *parent, lv_coord_t w, lv_coord_t h)
     lv_obj_t *o = lv_obj_create(parent);
     lv_obj_remove_style_all(o);
     lv_obj_set_size(o, w, h);
-    lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);     // plain layout box: taps reach what is behind it
     return o;
 }
 
@@ -325,12 +325,7 @@ void set_text(lv_obj_t *label, const String &text)
     if (valid(label)) lv_label_set_text(label, ui_tr(text.c_str()).c_str());
 }
 
-String fmt_de(float value, int decimals)
-{
-    String s = String(value, decimals);
-    s.replace('.', ',');
-    return s;
-}
+String fmt_num(float value, int decimals) { return String(value, decimals); }
 
 String fmt_int_sep(long value, bool separator)
 {
@@ -339,7 +334,7 @@ String fmt_int_sep(long value, bool separator)
     String out;
     int digits = 0;
     for (int i = s.length() - 1; i >= 0; i--) {
-        if (s[i] != '-' && digits && digits % 3 == 0) out = "." + out;
+        if (s[i] != '-' && digits && digits % 3 == 0) out = "," + out;
         out = String(s[i]) + out;
         if (s[i] != '-') digits++;
     }
@@ -349,6 +344,172 @@ String fmt_int_sep(long value, bool separator)
 const char *currency_code(int cur) { return cur == CUR_EUR ? "EUR" : cur == CUR_CHF ? "CHF" : "USD"; }
 const char *currency_symbol(int cur) { return cur == CUR_USD ? "$" : cur == CUR_EUR ? "EUR" : "CHF"; }
 int currency_index(const String &code) { return code == "EUR" ? CUR_EUR : code == "CHF" ? CUR_CHF : CUR_USD; }
+
+// ---------------------------------------------------------------- design system (see ui_internal.h)
+
+static lv_style_t s_st_panel, s_st_pill;
+static bool s_styles_ready = false;
+
+static void init_styles()
+{
+    if (s_styles_ready) return;
+    s_styles_ready = true;
+    lv_style_init(&s_st_panel);
+    lv_style_set_bg_color(&s_st_panel, PX_CARD);
+    lv_style_set_bg_opa(&s_st_panel, LV_OPA_COVER);
+    lv_style_set_border_width(&s_st_panel, 1);
+    lv_style_set_border_color(&s_st_panel, PX_EDGE);
+    lv_style_set_radius(&s_st_panel, 14);
+    lv_style_set_pad_all(&s_st_panel, 10);
+    lv_style_init(&s_st_pill);
+    lv_style_set_radius(&s_st_pill, LV_RADIUS_CIRCLE);
+    lv_style_set_pad_column(&s_st_pill, 6);
+}
+
+lv_obj_t *mk_panel(lv_obj_t *parent, lv_coord_t w, lv_coord_t h)
+{
+    init_styles();
+    lv_obj_t *o = mk_box(parent, w, h);
+    lv_obj_add_style(o, &s_st_panel, 0);
+    return o;
+}
+
+lv_obj_t *mk_pill(lv_obj_t *parent, lv_color_t bg, lv_opa_t opa, int pad_h, int pad_v)
+{
+    init_styles();
+    lv_obj_t *p = mk_row(parent, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_add_style(p, &s_st_pill, 0);
+    lv_obj_set_style_bg_color(p, bg, 0);
+    lv_obj_set_style_bg_opa(p, opa, 0);
+    lv_obj_set_style_pad_hor(p, pad_h, 0);
+    lv_obj_set_style_pad_ver(p, pad_v, 0);
+    return p;
+}
+
+lv_obj_t *mk_button(lv_obj_t *parent, const char *text, lv_color_t bg, lv_color_t fg, lv_coord_t w, lv_coord_t h)
+{
+    lv_obj_t *b = lv_btn_create(parent);
+    lv_obj_set_size(b, w, h);
+    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(b, bg, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_shadow_width(b, 0, 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    lv_obj_set_style_border_color(b, PX_EDGE, 0);
+    lv_obj_center(mk_label(b, text, h >= 44 ? FONT_S : FONT_XS, fg));
+    return b;
+}
+
+// Picks the largest font that fits `max_w`, so 10-digit values shrink instead of running off the card.
+void fit_text(lv_obj_t *label, const String &text, const lv_font_t *const *fonts, int n, lv_coord_t max_w)
+{
+    String t = ui_tr(text.c_str());
+    const lv_font_t *f = fonts[n - 1];
+    for (int i = 0; i < n; i++) {
+        if (lv_txt_get_width(t.c_str(), t.length(), fonts[i], 0, LV_TEXT_FLAG_NONE) <= max_w) { f = fonts[i]; break; }
+    }
+    lv_obj_set_style_text_font(label, f, 0);
+    lv_label_set_text(label, t.c_str());
+}
+
+void mk_chip(lv_obj_t *parent, Chip &c, const lv_font_t *font, int pad_h, int pad_v)
+{
+    c.box = mk_pill(parent, PX_UP, LV_OPA_20, pad_h, pad_v);
+    c.arrow = lv_label_create(c.box);
+    lv_obj_set_style_text_font(c.arrow, font, 0);
+    c.pct = mk_label(c.box, "--", font, PX_UP);
+    lv_obj_set_style_max_width(c.pct, 150, 0);
+    lv_label_set_long_mode(c.pct, LV_LABEL_LONG_DOT);
+}
+
+void chip_set(Chip &c, float pct, bool visible)
+{
+    if (!c.box) return;
+    bool down = pct < 0;
+    lv_color_t col = down ? PX_DOWN : PX_UP;
+    if (visible) lv_obj_clear_flag(c.box, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(c.box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_bg_color(c.box, col, 0);
+    lv_obj_set_style_text_color(c.pct, col, 0);
+    lv_obj_set_style_text_color(c.arrow, col, 0);
+    lv_label_set_text(c.arrow, down ? LV_SYMBOL_DOWN : LV_SYMBOL_UP);      // symbols bypass ui_tr
+    String t = String(pct >= 0 ? "+" : "") + fmt_num(pct, 2) + "%";
+    lv_label_set_text(c.pct, ui_tr(t.c_str()).c_str());
+}
+
+lv_obj_t *mk_info_card(lv_obj_t *parent, lv_coord_t w, lv_coord_t h, const char *caption,
+                       lv_obj_t **cap, lv_obj_t **val, lv_obj_t **extra)
+{
+    lv_obj_t *c = mk_panel(parent, w, h);
+    lv_obj_set_flex_flow(c, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(c, 3, 0);
+    lv_obj_t *top = mk_row(c, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_align(top, extra ? LV_FLEX_ALIGN_SPACE_BETWEEN : LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    *cap = mk_label(top, caption, FONT_XS, PX_DIM);
+    if (extra) *extra = mk_label(top, "", FONT_XS, PX_UP);
+    *val = mk_label(c, "--", FONT_S, PX_TEXT);
+    return c;
+}
+
+lv_obj_t *mk_row_of_cards(lv_obj_t *parent, lv_coord_t h)
+{
+    lv_obj_t *r = mk_row(parent, PX_INNER_W, h);
+    lv_obj_set_flex_align(r, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    return r;
+}
+
+Header mk_header(lv_obj_t *parent, const lv_img_dsc_t *icon, const char *title, const char *sub, lv_coord_t name_w)
+{
+    Header h = {};
+    h.row = mk_row(parent, PX_INNER_W, 40);
+    lv_obj_set_flex_align(h.row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *id = mk_row(h.row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_column(id, 10, 0);
+    lv_img_set_src(lv_img_create(id), icon);
+    lv_obj_t *names = mk_col(id, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_align(names, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    h.title = mk_label(names, title, FONT_S, PX_TEXT);
+    h.sub = mk_label(names, sub, FONT_XS, PX_DIM);
+    for (lv_obj_t *l : { h.title, h.sub }) {            // a long host name must not push the pills off the screen
+        lv_obj_set_style_max_width(l, name_w, 0);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    }
+    h.right = mk_row(h.row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_column(h.right, 12, 0);
+    return h;
+}
+
+lv_obj_t *mk_text_pill(lv_obj_t *right, const char *text)
+{
+    lv_obj_t *pill = mk_pill(right, PX_CARD, LV_OPA_COVER, 12, 5);
+    lv_obj_set_style_border_width(pill, 1, 0);
+    lv_obj_set_style_border_color(pill, PX_EDGE, 0);
+    return mk_label(pill, text, FONT_XS, PX_TEXT);
+}
+
+lv_obj_t *mk_live_pill(lv_obj_t *right, lv_obj_t **dot)
+{
+    lv_obj_t *label = mk_text_pill(right, "");
+    lv_obj_t *pill = lv_obj_get_parent(label);
+    lv_obj_t *d = lv_obj_create(pill);
+    lv_obj_remove_style_all(d);
+    lv_obj_move_to_index(d, 0);
+    lv_obj_set_size(d, 8, 8);
+    lv_obj_set_style_radius(d, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(d, PX_UP, 0);
+    lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+    lv_anim_t a;                                        // slow pulse; the var is the dot, so deleting it stops the animation
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, d);
+    lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_30);
+    lv_anim_set_time(&a, 1100);
+    lv_anim_set_playback_time(&a, 1100);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_exec_cb(&a, [](void *o, int32_t v) { lv_obj_set_style_bg_opa((lv_obj_t *)o, (lv_opa_t)v, 0); });
+    lv_anim_start(&a);
+    if (dot) *dot = d;
+    return label;
+}
 
 // ---------------------------------------------------------------- layers
 
@@ -366,19 +527,33 @@ static uint32_t s_switch_ms = 0;
 static uint32_t s_last_switch_ms = 0;
 static uint32_t s_first_page_ms = 0;          // price alerts arm 10 s after the first page
 static bool s_bar_shown = false;
+static bool s_banner_shown = false;
+static const int WIFI_BANNER_H = 20;
 static const uint32_t SWITCH_COOLDOWN_MS = 500;
 
 lv_obj_t *ui_screen() { return lv_scr_act(); }
 int ui_current_page() { return s_current_page; }
 bool ui_stream_bar_visible() { return s_bar_shown; }
 
+// The pages are flex columns, so a change of the content area (stream bar on top, Wi-Fi banner at the
+// bottom) re-flows them in place without rebuilding anything.
 static void layout_content()
 {
     int y = s_bar_shown ? STREAM_BAR_H : 0;
+    int h = SCREEN_H - y - (s_banner_shown ? WIFI_BANNER_H : 0);
     lv_obj_set_pos(s_container, 0, y);
-    lv_obj_set_size(s_container, SCREEN_W, SCREEN_H - y);
+    lv_obj_set_size(s_container, SCREEN_W, h);
     lv_obj_set_pos(s_nav, 0, y);
-    lv_obj_set_size(s_nav, SCREEN_W, SCREEN_H - y);
+    lv_obj_set_size(s_nav, SCREEN_W, SCREEN_H - y);     // the touch zones keep working under the banner
+}
+
+static void set_wifi_banner(bool shown)
+{
+    s_banner_shown = shown;
+    if (valid(s_wifi_banner)) {
+        if (shown) lv_obj_clear_flag(s_wifi_banner, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(s_wifi_banner, LV_OBJ_FLAG_HIDDEN);
+    }
+    layout_content();
 }
 
 // ---------------------------------------------------------------- page switching
@@ -421,7 +596,7 @@ static void show_page(int page)
     s_last_switch_ms = millis();
     lv_obj_move_foreground(s_nav);
     lv_obj_move_foreground(s_stream_bar);
-    // menu-only pages (RECHNER) have their own controls and no touch zones for page changes
+    // menu-only pages (CONVERTER) have their own controls and no touch zones for page changes
     if (PAGE_INFO[page].menuOnly) lv_obj_add_flag(s_nav, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_clear_flag(s_nav, LV_OBJ_FLAG_HIDDEN);
     diag_stage((String("page ") + PAGE_INFO[page].name).c_str());
@@ -472,13 +647,20 @@ static void show_alert_overlay(bool above, int level, const String &currency)
     lv_obj_set_style_bg_color(o, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     lv_obj_add_flag(o, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_t *t = mk_label(o, "PREISZIEL ERREICHT", FONT_L);
-    lv_obj_align(t, LV_ALIGN_CENTER, 0, -30);
-    String line = String(above ? "ueber " : "unter ") + fmt_int_sep(level, cfg.priceSeparator) + " " + currency;
-    lv_obj_t *s = mk_label(o, line.c_str(), FONT_M, above ? COL_GREEN : COL_RED);
-    lv_obj_align(s, LV_ALIGN_CENTER, 0, 20);
-    lv_obj_t *hint = mk_label(o, "Tippen zum Schliessen", FONT_XS, COL_GRAY);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -12);
+    lv_obj_t *col = mk_col(o, SCREEN_W - 40, LV_SIZE_CONTENT);
+    lv_obj_align(col, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_set_style_pad_row(col, 14, 0);
+    lv_obj_t *badge = mk_box(col, 64, 64);
+    lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(badge, above ? PX_UP : PX_DOWN, 0);
+    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
+    lv_obj_center(mk_label(badge, LV_SYMBOL_BELL, FONT_XL, lv_color_black()));
+    mk_label(col, "Price target reached", FONT_L);
+    String line = String(above ? "Above " : "Below ") + fmt_int_sep(level, cfg.priceSeparator) + " " + currency;
+    lv_obj_t *pill = mk_pill(col, above ? PX_UP : PX_DOWN, LV_OPA_20, 18, 7);
+    mk_label(pill, line.c_str(), FONT_M, above ? PX_UP : PX_DOWN);
+    lv_obj_t *hint = mk_label(o, "Tap to dismiss", FONT_XS, PX_IDLE);
+    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -14);
     // never delete an object inside its own event: LVGL does it after the handler returns
     lv_obj_add_event_cb(o, [](lv_event_t *e) { lv_obj_del_async((lv_obj_t *)lv_event_get_target(e)); },
                         LV_EVENT_CLICKED, nullptr);
@@ -524,11 +706,11 @@ static void build_stream_bar()
     lv_obj_remove_style_all(s_stream_bar);
     lv_obj_set_size(s_stream_bar, SCREEN_W, STREAM_BAR_H);
     lv_obj_set_pos(s_stream_bar, 0, 0);
-    lv_obj_set_style_bg_color(s_stream_bar, COL_PANEL, 0);
+    lv_obj_set_style_bg_color(s_stream_bar, PX_CARD, 0);
     lv_obj_set_style_bg_opa(s_stream_bar, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_stream_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(s_stream_bar, LV_OBJ_FLAG_HIDDEN);
-    s_stream_label = mk_label(s_stream_bar, "Stream laedt...", FONT_S);
+    s_stream_label = mk_label(s_stream_bar, "Loading stream...", FONT_S);
     lv_label_set_recolor(s_stream_label, true);
     lv_obj_align(s_stream_label, LV_ALIGN_CENTER, 0, 0);
 }
@@ -553,12 +735,12 @@ static void update_stream_bar()
     } else {
         int64_t remaining = live.streamStart - (int64_t)time(nullptr);
         if (live.streamStart == 0 || time(nullptr) < 1700000000) {
-            text = "Stream laedt...";
+            text = "Loading stream...";
         } else if (remaining <= 0) {
-            text = "#FFA500 Stream startet gleich#";
+            text = "#FFA500 Stream starting soon#";
         } else {
             char b[48];
-            snprintf(b, sizeof(b), "LIVESTREAM IN #FFA500 %02d:%02d:%02d#", (int)(remaining / 3600),
+            snprintf(b, sizeof(b), "STREAM STARTS IN #FFA500 %02d:%02d:%02d#", (int)(remaining / 3600),
                      (int)(remaining / 60 % 60), (int)(remaining % 60));
             text = b;
         }
@@ -659,67 +841,85 @@ static void sys_close()
     s_sys = nullptr;
 }
 
-static void wifi_message(const char *format)             // "%s" is the SSID, shown in orange
+// Round badge with a symbol, the icon of a status screen.
+static lv_obj_t *mk_badge(lv_obj_t *parent, const char *symbol, lv_color_t bg)
 {
-    sys_clear();
-    lv_obj_t *l = lv_label_create(s_sys);
-    lv_label_set_recolor(l, true);
-    char buf[160];
-    // one line, cut with "...": LVGL 8.3 drops the recolor state at a line break, a wrapped SSID would turn white
-    String ssid = fit_width(ui_tr(no_hash(g_ssid).c_str()), FONT_M,
-                            SCREEN_W - 24 - (int)lv_txt_get_width("SSID: ", 6, FONT_M, 0, 0));
-    snprintf(buf, sizeof(buf), format, ssid.c_str());
-    lv_label_set_text(l, ui_tr(buf).c_str());
-    lv_obj_set_style_text_font(l, FONT_M, 0);
-    lv_obj_set_style_text_color(l, COL_WHITE, 0);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(l, SCREEN_W - 20);                  // the first line must wrap, never leave the screen
-    lv_obj_center(l);
+    lv_obj_t *b = mk_box(parent, 56, 56);
+    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(b, bg, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_center(mk_label(b, symbol, FONT_L, lv_color_black()));
+    return b;
 }
 
-static lv_obj_t *mk_ota_bar(lv_obj_t *parent, lv_coord_t x)
+// Centred column on the status screen: badge, title, then whatever the caller adds.
+static lv_obj_t *sys_column(const char *symbol, lv_color_t badge, const char *title, lv_color_t title_col = PX_TEXT)
+{
+    lv_obj_t *col = mk_col(s_sys, SCREEN_W - 40, LV_SIZE_CONTENT);
+    lv_obj_center(col);
+    lv_obj_set_style_pad_row(col, 14, 0);
+    mk_badge(col, symbol, badge);
+    mk_label(col, title, FONT_M, title_col);
+    return col;
+}
+
+static lv_obj_t *sys_pill(lv_obj_t *parent, const char *text, lv_color_t color, const lv_font_t *font = FONT_S)
+{
+    lv_obj_t *p = mk_pill(parent, PX_CARD, LV_OPA_COVER, 16, 7);
+    lv_obj_set_style_border_width(p, 1, 0);
+    lv_obj_set_style_border_color(p, PX_EDGE, 0);
+    return mk_label(p, text, font, color);
+}
+
+static void wifi_message(const char *symbol, lv_color_t color, const char *title)
+{
+    sys_clear();
+    lv_obj_t *col = sys_column(symbol, color, title);
+    // one line, cut with "...": a wrapped SSID could leave the screen
+    String ssid = fit_width(ui_tr(g_ssid.c_str()), FONT_S, SCREEN_W - 120);
+    sys_pill(col, ssid.c_str(), PX_ORANGE);
+}
+
+static lv_obj_t *mk_ota_bar(lv_obj_t *parent)
 {
     lv_obj_t *b = lv_bar_create(parent);
-    lv_obj_set_size(b, 150, 7);
-    lv_obj_align(b, LV_ALIGN_LEFT_MID, x, 35);
+    lv_obj_set_size(b, 400, 8);
     lv_bar_set_range(b, 0, 100);
     lv_bar_set_value(b, 0, LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(b, COL_TRACK, 0);
+    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_radius(b, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(b, PX_EDGE, 0);
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(b, COL_ORANGE, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(b, PX_ORANGE, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_INDICATOR);
     return b;
 }
 
-static lv_obj_t *mk_button(lv_obj_t *parent, const char *text, lv_color_t color, lv_coord_t x, lv_coord_t y)
+static lv_obj_t *mk_button_row(lv_obj_t *parent)
 {
-    lv_obj_t *b = lv_btn_create(parent);
-    lv_obj_set_size(b, 150, 50);
-    lv_obj_align(b, LV_ALIGN_LEFT_MID, x, y);
-    lv_obj_set_style_radius(b, 5, 0);
-    lv_obj_set_style_bg_color(b, color, 0);
-    lv_obj_t *l = mk_label(b, text, FONT_XS);
-    lv_obj_center(l);
-    return b;
+    lv_obj_t *r = mk_row(parent, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_column(r, 14, 0);
+    lv_obj_set_style_pad_top(r, 6, 0);
+    return r;
 }
 
 static void build_ota_available()
 {
     sys_clear();
-    lv_obj_t *t = mk_label(s_sys, "NEUE FIRMWARE VERFUEGBAR", FONT_M);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 70, -45);
-    char v[96];
-    snprintf(v, sizeof(v), "AKTUELL:   %s       NEU:   %s", FIRMWARE_VERSION, ota.remoteVersion.c_str());
-    lv_obj_t *vl = mk_label(s_sys, v, FONT_XS);
-    lv_obj_align(vl, LV_ALIGN_LEFT_MID, 72, -10);
+    lv_obj_t *col = sys_column(LV_SYMBOL_DOWNLOAD, PX_ORANGE, "New firmware available");
+    lv_obj_t *versions = mk_row(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_column(versions, 10, 0);
+    sys_pill(versions, (String("Current  ") + FIRMWARE_VERSION).c_str(), PX_DIM, FONT_XS);
+    sys_pill(versions, (String("New  ") + ota.remoteVersion).c_str(), PX_ORANGE, FONT_XS);
 
-    lv_obj_t *yes = mk_button(s_sys, "INSTALLIEREN", COL_ORANGE, 70, 45);
+    lv_obj_t *buttons = mk_button_row(col);
+    lv_obj_t *yes = mk_button(buttons, "INSTALL", PX_ORANGE, lv_color_black(), 190, 48);
     lv_obj_add_event_cb(yes, [](lv_event_t *) {
         ota.stage = OTA_CONFIRMED;
         ui_show(UI_OTA_PROGRESS);
         ota_start_task();
     }, LV_EVENT_CLICKED, nullptr);
-    lv_obj_t *no = mk_button(s_sys, "UEBERSPRINGEN", c565(0x52AA), 240, 45);
+    lv_obj_t *no = mk_button(buttons, "SKIP", PX_BTN, PX_TEXT, 190, 48);
     lv_obj_add_event_cb(no, [](lv_event_t *) {
         ota.stage = OTA_IDLE;
         ota.active = false;
@@ -730,39 +930,34 @@ static void build_ota_available()
 static void build_ota_progress()
 {
     sys_clear();
-    lv_obj_t *t = mk_label(s_sys, "UPDATE WIRD INSTALLIERT", FONT_M);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 70, -45);
-    w_ota_dl_label = mk_label(s_sys, "Download:  0%", FONT_S);
-    lv_obj_align(w_ota_dl_label, LV_ALIGN_LEFT_MID, 70, 0);
-    w_ota_dl_bar = mk_ota_bar(s_sys, 70);
-    w_ota_in_label = mk_label(s_sys, "Installation:  0%", FONT_S);
-    lv_obj_align(w_ota_in_label, LV_ALIGN_LEFT_MID, 265, 0);
-    w_ota_in_bar = mk_ota_bar(s_sys, 265);
+    lv_obj_t *col = sys_column(LV_SYMBOL_DOWNLOAD, PX_ORANGE, "Installing update");
+    lv_obj_set_style_pad_row(col, 8, 0);
+    w_ota_dl_label = mk_label(col, "Download:  0%", FONT_S);
+    w_ota_dl_bar = mk_ota_bar(col);
+    lv_obj_set_style_pad_top(w_ota_dl_label, 10, 0);
+    w_ota_in_label = mk_label(col, "Installation:  0%", FONT_S, PX_DIM);
+    lv_obj_set_style_pad_top(w_ota_in_label, 8, 0);
+    w_ota_in_bar = mk_ota_bar(col);
 }
 
 static void build_ota_done()
 {
     sys_clear();
     w_ota_dl_label = w_ota_in_label = w_ota_dl_bar = w_ota_in_bar = nullptr;
-    lv_obj_t *t = mk_label(s_sys, "UPDATE ERFOLGREICH", FONT_M);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 70, -35);
-    String v = "VERSION:   " + ota.remoteVersion;
-    lv_obj_t *vl = mk_label(s_sys, v.c_str(), FONT_XS, COL_AMBER);
-    lv_obj_align(vl, LV_ALIGN_LEFT_MID, 70, -5);
-    lv_obj_t *r = mk_label(s_sys, "Das Geraet startet neu...", FONT_S);
-    lv_obj_align(r, LV_ALIGN_LEFT_MID, 70, 35);
+    lv_obj_t *col = sys_column(LV_SYMBOL_OK, PX_UP, "Update installed");
+    sys_pill(col, (String("Version  ") + ota.remoteVersion).c_str(), PX_ORANGE, FONT_XS);
+    mk_label(col, "The device is restarting...", FONT_S, PX_DIM);
 }
 
 static void build_ota_error()
 {
     sys_clear();
-    lv_obj_t *t = mk_label(s_sys, "UPDATE FEHLGESCHLAGEN", FONT_M, COL_RED);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 70, -35);
-    lv_obj_t *e = mk_label(s_sys, ota.error.c_str(), FONT_XS);
+    lv_obj_t *col = sys_column(LV_SYMBOL_WARNING, PX_DOWN, "Update failed", PX_DOWN);
+    lv_obj_t *e = mk_label(col, ota.error.c_str(), FONT_XS, PX_DIM);
     lv_label_set_long_mode(e, LV_LABEL_LONG_SCROLL_CIRCULAR);        // long HTTP errors scroll instead of leaving the screen
     lv_obj_set_width(e, SCREEN_W - 80);
-    lv_obj_align(e, LV_ALIGN_LEFT_MID, 70, -5);
-    lv_obj_t *ok = mk_button(s_sys, "SCHLIESSEN", c565(0x52AA), 70, 45);
+    lv_obj_set_style_text_align(e, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_t *ok = mk_button(col, "CLOSE", PX_BTN, PX_TEXT, 190, 48);
     lv_obj_add_event_cb(ok, [](lv_event_t *) { ota.active = false; ui_post(sys_close); }, LV_EVENT_CLICKED, nullptr);
 }
 
@@ -795,19 +990,23 @@ static void ota_ui_tick()
 static void wizard_ask_password()
 {
     sys_clear();
-    lv_obj_t *title = mk_label(s_sys, fit_width(ui_tr(("Passwort fuer " + g_ssid).c_str()), FONT_S, SCREEN_W - 20).c_str(),
-                               FONT_S, COL_ORANGE);
+    lv_obj_t *title = mk_label(s_sys, fit_width(ui_tr(("Password for " + g_ssid).c_str()), FONT_S, SCREEN_W - 20).c_str(),
+                               FONT_S, PX_ORANGE);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 10, 8);
     w_wizard_pass = lv_textarea_create(s_sys);
     lv_textarea_set_one_line(w_wizard_pass, true);
     lv_textarea_set_password_mode(w_wizard_pass, true);
     lv_obj_set_width(w_wizard_pass, 300);
     lv_obj_align(w_wizard_pass, LV_ALIGN_TOP_LEFT, 10, 40);
-    lv_obj_t *go = lv_btn_create(s_sys);
-    lv_obj_set_size(go, 140, 40);
+    lv_obj_set_style_bg_color(w_wizard_pass, PX_CARD, 0);
+    lv_obj_set_style_border_color(w_wizard_pass, PX_EDGE, 0);
+    lv_obj_set_style_radius(w_wizard_pass, 12, 0);
+    lv_obj_set_style_text_color(w_wizard_pass, PX_TEXT, 0);
+    lv_obj_set_style_text_font(w_wizard_pass, FONT_S, 0);
+    lv_obj_set_style_border_color(w_wizard_pass, PX_ORANGE, LV_STATE_FOCUSED);
+    lv_obj_set_style_bg_color(w_wizard_pass, PX_ORANGE, LV_PART_CURSOR);
+    lv_obj_t *go = mk_button(s_sys, "CONNECT", PX_ORANGE, lv_color_black(), 140, 40);
     lv_obj_align(go, LV_ALIGN_TOP_RIGHT, -10, 40);
-    lv_obj_set_style_bg_color(go, COL_ORANGE, 0);
-    lv_obj_center(mk_label(go, "VERBINDEN", FONT_XS));
     lv_obj_add_event_cb(go, [](lv_event_t *) {
         g_pass = lv_textarea_get_text(w_wizard_pass);
         ui_show(UI_WIFI_CONNECTING);
@@ -817,17 +1016,22 @@ static void wizard_ask_password()
     }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *kb = lv_keyboard_create(s_sys);
     lv_keyboard_set_textarea(kb, w_wizard_pass);
+    lv_obj_set_style_bg_color(kb, lv_color_black(), 0);
+    lv_obj_set_style_bg_color(kb, PX_BTN, LV_PART_ITEMS);
+    lv_obj_set_style_text_color(kb, PX_TEXT, LV_PART_ITEMS);
+    lv_obj_set_style_text_font(kb, FONT_S, LV_PART_ITEMS);      // the theme font would be Montserrat; symbols still fall back to it
+    lv_obj_set_style_border_width(kb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_radius(kb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(kb, PX_EDGE, LV_PART_ITEMS | LV_STATE_CHECKED);       // control keys
+    lv_obj_set_style_text_color(kb, PX_ORANGE, LV_PART_ITEMS | LV_STATE_CHECKED);
 }
 
 static std::vector<WifiAp> s_wizard_nets;       // what the list shows; a row remembers its index here
 
 static void wizard_rescan_button(lv_obj_t *parent, lv_align_t align, int x, int y)
 {
-    lv_obj_t *b = lv_btn_create(parent);
-    lv_obj_set_size(b, 150, 34);
+    lv_obj_t *b = mk_button(parent, "SCAN AGAIN", PX_ORANGE, lv_color_black(), 150, 34);
     lv_obj_align(b, align, x, y);
-    lv_obj_set_style_bg_color(b, COL_ORANGE, 0);
-    lv_obj_center(mk_label(b, "NEU SUCHEN", FONT_XS));
     lv_obj_add_event_cb(b, [](lv_event_t *) { ui_show(UI_WIFI_WIZARD); }, LV_EVENT_CLICKED, nullptr);
 }
 
@@ -835,12 +1039,12 @@ static void wizard_show_networks(const std::vector<WifiAp> &found)
 {
     sys_clear();
     s_wizard_nets = wifi_networks(found, 15);      // one row per network name, strongest first
-    lv_obj_t *title = mk_label(s_sys, "WLAN AUSWAEHLEN", FONT_S, COL_ORANGE);
+    lv_obj_t *title = mk_label(s_sys, "Select a network", FONT_S, PX_ORANGE);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 10, 8);
     if (s_wizard_nets.empty()) {                   // never leave a blank list: say so and offer another scan
-        lv_obj_t *msg = mk_label(s_sys, "KEINE NETZWERKE GEFUNDEN", FONT_S);
+        lv_obj_t *msg = mk_label(s_sys, "No networks found", FONT_M);
         lv_obj_align(msg, LV_ALIGN_CENTER, 0, -40);
-        lv_obj_t *hint = mk_label(s_sys, "Ist der Router in Reichweite?", FONT_XS);
+        lv_obj_t *hint = mk_label(s_sys, "Is the router in range?", FONT_XS, PX_DIM);
         lv_obj_align(hint, LV_ALIGN_CENTER, 0, -5);
         wizard_rescan_button(s_sys, LV_ALIGN_CENTER, 0, 45);
         return;
@@ -848,8 +1052,19 @@ static void wizard_show_networks(const std::vector<WifiAp> &found)
     lv_obj_t *list = lv_list_create(s_sys);
     lv_obj_set_size(list, SCREEN_W - 20, SCREEN_H - 50);
     lv_obj_align(list, LV_ALIGN_BOTTOM_MID, 0, -5);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(list, 0, 0);
+    lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_set_style_pad_row(list, 6, 0);
     for (size_t i = 0; i < s_wizard_nets.size(); i++) {
         lv_obj_t *b = lv_list_add_btn(list, LV_SYMBOL_WIFI, ui_tr(s_wizard_nets[i].ssid.c_str()).c_str());
+        lv_obj_set_style_text_font(b, FONT_S, 0);          // the list would use the theme font, which lacks umlauts
+        lv_obj_set_style_bg_color(b, PX_CARD, 0);
+        lv_obj_set_style_bg_color(b, PX_EDGE, LV_STATE_PRESSED);
+        lv_obj_set_style_border_width(b, 1, 0);
+        lv_obj_set_style_border_color(b, PX_EDGE, 0);
+        lv_obj_set_style_radius(b, 12, 0);
+        lv_obj_set_style_text_color(b, PX_TEXT, 0);
         lv_obj_set_user_data(b, (void *)(intptr_t)(i + 1));
         lv_obj_add_event_cb(b, [](lv_event_t *e) {
             size_t idx = (size_t)(intptr_t)lv_obj_get_user_data((lv_obj_t *)lv_event_get_target(e)) - 1;
@@ -874,17 +1089,23 @@ static void show_screen(UiScreen s)
     switch (s) {
         case UI_WELCOME: {
             sys_clear();
-            lv_obj_center(mk_label(s_sys, "WLAN Setup wird gestartet...", FONT_M));
+            lv_obj_t *col = mk_col(s_sys, SCREEN_W - 40, LV_SIZE_CONTENT);
+            lv_obj_center(col);
+            lv_obj_set_style_pad_row(col, 14, 0);
+            mk_badge(col, LV_SYMBOL_WIFI, PX_ORANGE);
+            mk_label(col, "Starting Wi-Fi setup...", FONT_M);
             break; }
-        case UI_WIFI_CONNECTING: wifi_message("Verbindung wird hergestellt.\nSSID: #FFA500 %s#"); break;
-        case UI_WIFI_CONNECTED:  wifi_message("Verbindung erfolgreich hergestellt.\nSSID: #FFA500 %s#"); break;
-        case UI_WIFI_FAILED:     wifi_message("Verbindung fehlgeschlagen!\nSSID: #FFA500 %s#"); break;
-        case UI_WIFI_LOST:
-            if (valid(s_wifi_banner)) lv_obj_clear_flag(s_wifi_banner, LV_OBJ_FLAG_HIDDEN);
-            break;
+        case UI_WIFI_CONNECTING: wifi_message(LV_SYMBOL_WIFI, PX_ORANGE, "Connecting to Wi-Fi..."); break;
+        case UI_WIFI_CONNECTED:  wifi_message(LV_SYMBOL_OK, PX_UP, "Connected"); break;
+        case UI_WIFI_FAILED:     wifi_message(LV_SYMBOL_WARNING, PX_DOWN, "Connection failed"); break;
+        case UI_WIFI_LOST: set_wifi_banner(true); break;
         case UI_WIFI_WIZARD: {
             sys_clear();
-            lv_obj_center(mk_label(s_sys, "SUCHE NETZWERKE", FONT_S));
+            lv_obj_t *col = mk_col(s_sys, SCREEN_W - 40, LV_SIZE_CONTENT);
+            lv_obj_center(col);
+            lv_obj_set_style_pad_row(col, 14, 0);
+            mk_badge(col, LV_SYMBOL_REFRESH, PX_ORANGE);
+            mk_label(col, "Searching for networks...", FONT_S);
             xTaskCreatePinnedToCore(wizard_scan_task, "WiFiScanTask", 0x3000, nullptr, 1, nullptr, 1);
             break; }
         case UI_OTA_AVAILABLE: build_ota_available(); break;
@@ -897,7 +1118,7 @@ void ui_show(UiScreen s) { ui_post([s] { show_screen(s); }); }
 void ui_notify_wifi_lost() { ui_show(UI_WIFI_LOST); }
 void ui_notify_wifi_restored()
 {
-    ui_post([] { if (valid(s_wifi_banner)) lv_obj_add_flag(s_wifi_banner, LV_OBJ_FLAG_HIDDEN); });
+    ui_post([] { set_wifi_banner(false); });
 }
 void ui_notify_wifi_retry() {}
 void ui_setup_done() { ui_post([] { sys_close(); }); }
@@ -945,13 +1166,13 @@ bool ui_init()
     build_stream_bar();
     s_wifi_banner = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(s_wifi_banner);
-    lv_obj_set_size(s_wifi_banner, SCREEN_W, 20);                  // slim: keeps page content readable
-    lv_obj_set_pos(s_wifi_banner, 0, SCREEN_H - 20);
-    lv_obj_set_style_bg_color(s_wifi_banner, c565(0xC3E1), 0);
+    lv_obj_set_size(s_wifi_banner, SCREEN_W, WIFI_BANNER_H);       // the pages shrink above it
+    lv_obj_set_pos(s_wifi_banner, 0, SCREEN_H - WIFI_BANNER_H);
+    lv_obj_set_style_bg_color(s_wifi_banner, PX_ORANGE, 0);
     lv_obj_set_style_bg_opa(s_wifi_banner, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_wifi_banner, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_wifi_banner, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_center(mk_label(s_wifi_banner, "WLAN getrennt, verbinde neu...", FONT_XS, lv_color_black()));
+    lv_obj_center(mk_label(s_wifi_banner, "Wi-Fi disconnected, reconnecting...", FONT_XS, lv_color_black()));
     s_last_touch_ms = millis();
     s_ready = true;
     return true;

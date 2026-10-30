@@ -425,6 +425,9 @@ static void check_transliteration()
         { "€ 5 – „x“", "EUR 5 - \"x\"" },
         { "\xC3", "?" },
     };
+#ifdef UI_CUSTOM_FONTS                  // the fonts have the glyphs: text passes through untouched
+    for (auto &c : t) c.want = c.in;
+#endif
     for (auto &c : t) {
         String got = ui_tr(c.in);
         if (got != c.want) { printf("  FAIL ui_tr(\"%s\") = \"%s\", wanted \"%s\"\n", c.in, got.c_str(), c.want); g_warnings++; }
@@ -484,6 +487,35 @@ static void render_all()
     settle();
     shot("price_no_separator");
     cfg.priceSeparator = true;
+    ui_settings_changed();
+    settle();
+
+    // chart page: other timeframes, and without usable chart data
+    goto_page(PAGE_CHART);
+    for (int tf = 2; tf <= 3; tf++) {
+        cfg.chartTf = tf;
+        ui_settings_changed();
+        settle();
+        char n[64];
+        snprintf(n, sizeof(n), "chartpage_tf%d", tf);
+        shot(n);
+    }
+    cfg.chartTf = 1;
+    const char *bad_json[3] = { "", "{\"tf\":{\"24h\":{\"p\":[[1,2", "{\"tf\":{\"24h\":{\"p\":[[1,5,5,5],[2,5,5,5],[3,5,5,5]]}}}" };
+    const char *bad_name[3] = { "no_chart", "broken_chart", "flat_chart" };
+    for (int i = 0; i < 3; i++) {
+        {
+            DataLock lock;
+            live.chartJson = bad_json[i];
+            live.chartVersion++;
+        }
+        ui_settings_changed();
+        settle();
+        char n[64];
+        snprintf(n, sizeof(n), "chartpage_%s", bad_name[i]);
+        shot(n);
+    }
+    load_sample_data();
     ui_settings_changed();
     settle();
 
@@ -596,9 +628,13 @@ static void render_all()
             if (lv_obj_check_type(c, &lv_label_class) && !strncmp(lv_label_get_text(c), "WWWW", 4)) target = btn;
         }
     }
-    if (target) tap_obj(target);                   // the list is gone afterwards: do not touch it again
-    else { printf("  FAIL wizard entry not found\n"); g_warnings++; }
+    if (target) {
+        lv_obj_scroll_to_view(target, LV_ANIM_OFF);   // the long entry sits below the visible part of the list
+        run_ms(100);
+        tap_obj(target);                           // the list is gone afterwards: do not touch it again
+    } else { printf("  FAIL wizard entry not found\n"); g_warnings++; }
     settle();
+    if (!valid(w_wizard_pass)) { printf("  FAIL tapping the long network did not open the password screen\n"); g_warnings++; }
     if (valid(w_wizard_pass)) lv_textarea_set_text(w_wizard_pass, "geheimes-passwort");
     run_ms(100);
     shot("wizard_password");
@@ -611,17 +647,17 @@ static void render_all()
         wizard_scan_task(nullptr);
         settle();
         shot(count == 0 ? "wizard_scan_empty" : "wizard_scan_failed");
-        if (!find_label(s_sys, "KEINE NETZWERKE")) { printf("  FAIL no 'nothing found' message after a scan returning %d\n", count); g_warnings++; }
-        lv_obj_t *again = find_label(s_sys, "NEU SUCHEN");
+        if (!find_label(s_sys, "No networks found")) { printf("  FAIL no 'nothing found' message after a scan returning %d\n", count); g_warnings++; }
+        lv_obj_t *again = find_label(s_sys, "SCAN AGAIN");
         if (!again) { printf("  FAIL no rescan button after a scan returning %d\n", count); g_warnings++; }
         if (count == 0 && again) {                      // tapping it searches again, and a scan that works shows the list
             tap_obj(lv_obj_get_parent(again));
             settle();
-            if (!find_label(s_sys, "SUCHE NETZWERKE")) { printf("  FAIL rescan button did not start a search\n"); g_warnings++; }
+            if (!find_label(s_sys, "Searching for networks")) { printf("  FAIL rescan button did not start a search\n"); g_warnings++; }
             g_host_scan_count = 10;
             wizard_scan_task(nullptr);
             settle();
-            if (find_label(s_sys, "KEINE NETZWERKE") || !find_label(s_sys, "FRITZ!Box 7590 JK")) { printf("  FAIL list missing after the rescan\n"); g_warnings++; }
+            if (find_label(s_sys, "No networks found") || !find_label(s_sys, "FRITZ!Box 7590 JK")) { printf("  FAIL list missing after the rescan\n"); g_warnings++; }
         }
         close_everything();
     }
@@ -637,7 +673,7 @@ static void render_all()
         if (rows != 8) { printf("  FAIL wizard shows %u rows, wanted 8 (10 results, 1 duplicate, 1 hidden)\n", rows); g_warnings++; }
         lv_obj_t *first = list && rows ? lv_obj_get_child(list, 0) : nullptr;
         if (!first || !find_label(first, "FRITZ!Box 7590 JK")) { printf("  FAIL strongest network is not the first row\n"); g_warnings++; }
-        if (!find_label(s_sys, "NEU SUCHEN")) { printf("  FAIL no rescan button on the list screen\n"); g_warnings++; }
+        if (!find_label(s_sys, "SCAN AGAIN")) { printf("  FAIL no rescan button on the list screen\n"); g_warnings++; }
         if (first) {                                    // the row remembers its network, not a scan index
             tap_obj(first);
             settle();
@@ -671,10 +707,10 @@ static void render_all()
     ota.stage = OTA_INSTALLING; run_ms(300); shot("ota_installing");
     ota.stage = OTA_DONE; run_ms(300); shot("ota_done");
     ota.stage = OTA_ERROR; ota.active = true;
-    ota.error = "Download fehlgeschlagen: HTTP 404";
+    ota.error = "Download failed: HTTP 404";
     ui_show(UI_OTA_PROGRESS); run_ms(100);
     ota.stage = OTA_ERROR; run_ms(300); shot("ota_error");
-    ota.error = "Download fehlgeschlagen: HTTP 404 (https://btclock.blocktrainer.de/v2/firmware/firmware.bin), Flash-Schreibfehler an Offset 0x1A0000";
+    ota.error = "Download failed: HTTP 404 (https://btclock.blocktrainer.de/v2/firmware/firmware.bin), flash write error at offset 0x1A0000";
     ota.stage = OTA_DOWNLOADING; ui_show(UI_OTA_PROGRESS); run_ms(100);
     ota.stage = OTA_ERROR; run_ms(300); shot("ota_error_long");
     ota.stage = OTA_IDLE; ota.active = false;
@@ -751,6 +787,40 @@ static void render_all()
         snprintf(n, sizeof(n), "huge_%s", PAGE_FILE[p]);
         shot(n);
     }
+    // number formats and derived values
+    printf("-- formats\n");
+    auto expect_text = [&](const char *what, const char *text) {
+        if (!find_label(lv_scr_act(), text)) { printf("  FAIL %s: no label starting with '%s'\n", what, text); g_warnings++; }
+    };
+    load_sample_data();
+    live.streamKnown = false;
+    goto_page(PAGE_PRICE);
+    expect_text("thousands separator", "97,123");
+    expect_text("change text", "+1.23%");
+    goto_page(PAGE_CLOCK);
+    expect_text("weekday and date", "Friday, 14 Nov 2025");
+    goto_page(PAGE_DIFF);
+    expect_text("time left", "~5 d 3 h");
+    goto_page(PAGE_BLOCK);
+    struct { int height; const char *reward, *left; } halving[] = {
+        { 1, "50 BTC", "209,999 blocks" }, { 209999, "50 BTC", "1 blocks" }, { 210000, "25 BTC", "210,000 blocks" },
+        { 840000, "3.125 BTC", "210,000 blocks" }, { 1050000, "1.5625 BTC", "210,000 blocks" }, { 7000000, "0 BTC", "" } };
+    for (auto &h : halving) {
+        { DataLock lock; live.blockHeight = h.height; }
+        run_ms(1200);
+        expect_text("block reward", h.reward);
+        if (h.height == 840000) expect_text("mined supply", "19.69M of 21M BTC mined  |  93.8%");
+        if (h.height == 7000000) expect_text("mined supply cap", "21.00M of 21M BTC mined  |  100.0%");
+        if (*h.left) expect_text("blocks to halving", h.left);
+    }
+    // a 32 character host name must be cut, not push the status pill off the screen
+    {
+        DataLock lock;
+        g_bitaxe[0].hostname = "bitaxe-gamma-wohnzimmer-keller-01";
+    }
+    goto_page(PAGE_BITAXE);
+    run_ms(1200);
+    shot("bitaxe_long_name");
     load_sample_data();
     live.streamKnown = false;
     goto_page(PAGE_PRICE);
