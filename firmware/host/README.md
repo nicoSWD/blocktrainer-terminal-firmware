@@ -69,16 +69,18 @@ Bugs found with this harness and fixed in `src/` (details in the code comments):
   sanitizer hit). Price, sats, fee and difficulty-bar casts are clamped for the 32-bit `long`.
 * Text that ran off or was clipped on the 480x320 screen: fees captions, stream bar title, SSID on the
   Wi-Fi status screens, OTA error text, password screen title, two menu text lines.
-* The Wi-Fi lost banner covered the news author line (banner now 20 px, author line moved up).
+* The Wi-Fi lost banner covered the news author line (the content area now ends above the banner).
 * Converter: the caption of the active (orange) field was unreadable gray.
 
 Polish made along the way: Latin-1 letters lose their accent in `ui_tr` instead of showing '?',
 "°C" unit on the Bitaxe page, duplicate SSIDs hidden in the Wi-Fi list, equal-width side cards on the
-chart page, "Kein Geraet" instead of "No device".
+chart page.
 
-Known and left alone: absurd fee values (12345 sat/vB) overflow their column on the fees page
-(reported as `info` for the `huge_*` images), and the converter's SPEICHERN button is partly
-covered by the Wi-Fi lost banner while it is shown (touches still reach it).
+Since the UI redesign every page is a flex column: the Wi-Fi lost banner and the stream bar shrink the
+page in place (no rebuild, so a half-typed converter amount survives), and long values shrink their font
+(`fit_text`) instead of running off the screen, so the `huge_*` images no longer report clipped text.
+The English wording, number formats and the halving / retarget arithmetic are asserted in the
+"formats" section of `host_main.cpp`.
 
 ## OTA update test
 

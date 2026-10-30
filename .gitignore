@@ -8,7 +8,7 @@ extracted/
 *.elf
 
 # --- Toolchain / dependencies ---
-tools/
+/tools/
 .venv/
 venv/
 

@@ -30,8 +30,8 @@ LV_SRC  := $(foreach d,$(LV_DIRS),$(shell find $(LVGL)/src/$(d) -name '*.c'))
 LV_SRC  += $(wildcard $(LVGL)/src/extra/*.c)
 LV_OBJ  := $(patsubst $(LVGL)/%.c,$(BUILD)/lvgl/%.o,$(LV_SRC))
 
-FW_CXX  := $(FW)/src/ui_pages.cpp $(FW)/src/ui_menu.cpp $(FW)/src/pages.cpp $(FW)/src/wifi_scan.cpp
-FW_OBJ  := $(patsubst $(FW)/src/%.cpp,$(BUILD)/fw/%.o,$(FW_CXX))
+FW_CXX  := $(FW)/src/ui_pages.cpp $(FW)/src/ui_assets.cpp $(FW)/src/ui_menu.cpp $(FW)/src/pages.cpp $(FW)/src/wifi_scan.cpp
+FW_OBJ  := $(patsubst $(FW)/src/%.cpp,$(BUILD)/fw/%.o,$(FW_CXX)) $(patsubst $(FW)/src/%.c,$(BUILD)/fw/%.o,$(wildcard $(FW)/src/fonts/*.c))
 # host_main.cpp includes ui_core.cpp itself (it needs its statics)
 HOST_OBJ := $(BUILD)/host_main.o $(BUILD)/host_stubs.o
 
@@ -53,6 +53,11 @@ $(BUILD)/fw/%.o: $(FW)/src/%.cpp
 	@mkdir -p $(dir $@)
 	@echo CXX $(notdir $<)
 	@$(CXX) $(CXXFLAGS) -MMD -c $< -o $@
+
+$(BUILD)/fw/fonts/%.o: $(FW)/src/fonts/%.c
+	@mkdir -p $(dir $@)
+	@echo CC  $(notdir $<)
+	@$(CC) $(CFLAGS_LV) -MMD -c $< -o $@
 
 $(BUILD)/host_main.o: host_main.cpp $(FW)/src/ui_core.cpp
 	@mkdir -p $(BUILD)

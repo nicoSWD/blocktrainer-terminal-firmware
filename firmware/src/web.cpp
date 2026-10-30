@@ -119,14 +119,13 @@ static String render_index()
 
 static void handle_status()
 {
-    static const char *WEEKDAYS[7] = { "SONNTAG", "MONTAG", "DIENSTAG", "MITTWOCH",
-                                       "DONNERSTAG", "FREITAG", "SAMSTAG" };
+    static const char *WEEKDAYS[7] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
     time_t now = time(nullptr);
     struct tm tmv;
     localtime_r(&now, &tmv);
     char time_str[8], date_str[12];
     strftime(time_str, sizeof(time_str), "%H:%M", &tmv);
-    strftime(date_str, sizeof(date_str), "%d.%m.%Y", &tmv);
+    strftime(date_str, sizeof(date_str), "%d %b %Y", &tmv);
 
     String out;
     out.reserve(1024);
@@ -326,6 +325,7 @@ static void handle_update_upload()
         Update.begin(UPDATE_SIZE_UNKNOWN);
     } else if (up.status == UPLOAD_FILE_WRITE) {
         if (Update.write(up.buf, up.currentSize) != up.currentSize) Update.abort();
+        vTaskDelay(1);                          // let the idle task run: a fast upload plus the animated UI otherwise trips the task watchdog
     } else if (up.status == UPLOAD_FILE_END) {
         Update.end(true);
     } else if (up.status == UPLOAD_FILE_ABORTED) {

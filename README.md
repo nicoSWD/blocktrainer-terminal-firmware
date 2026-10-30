@@ -15,6 +15,14 @@ flashing tools needed, or over USB with `esptool` if you have physical access to
 > it working with blocktrainer.de's services. You are solely responsible for what you do with it.
 > See [Disclaimer](#disclaimer).
 
+## Screenshots
+
+Rendered from the real UI code by the host test harness (`firmware/host`), not photographed.
+
+| Price chart | Block height |
+|---|---|
+| <img src="docs/screenshots/price-chart.png" width="400" alt="Price chart page"> | <img src="docs/screenshots/block-height.png" width="400" alt="Block height page"> |
+
 ## The device
 
 - **WT32-SC01 Plus** (ESP32-S3), 3.5" touch LCD
@@ -189,8 +197,8 @@ What each harness covers and does not cover is in `firmware/host/README.md`.
 ## License
 
 The code in this repository is released under the [MIT License](LICENSE). Third-party libraries
-that end up in the firmware image (LVGL, ArduinoJson, FastLED, LovyanGFX, the Arduino-ESP32 core
-and ESP-IDF) keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+that end up in the firmware image (LVGL, ArduinoJson, FastLED, LovyanGFX, the Arduino-ESP32 core,
+ESP-IDF and the Roboto and Montserrat fonts) keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 The MIT license covers this project's own code only. The name "Blocktrainer", the `blocktrainer.de`
 servers and APIs the firmware talks to, and the stock firmware itself belong to blocktrainer.de and

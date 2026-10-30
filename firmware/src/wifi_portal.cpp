@@ -26,16 +26,16 @@ static String form_page(const String &message, const String &options)
 {
     String h = F("<!DOCTYPE html><html><head><meta charset='utf-8'>"
                  "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-                 "<title>BT Clock WLAN</title><style>body{font-family:sans-serif;background:#111;color:#eee;"
+                 "<title>BT Terminal Wi-Fi</title><style>body{font-family:sans-serif;background:#111;color:#eee;"
                  "max-width:420px;margin:30px auto;padding:0 16px}input,button{width:100%;padding:12px;"
                  "margin:6px 0;font-size:16px;box-sizing:border-box}button{background:#fa0;border:0}"
-                 ".msg{color:#fa0}</style></head><body><h2>WLAN einrichten</h2>");
+                 ".msg{color:#fa0}</style></head><body><h2>Wi-Fi setup</h2>");
     if (message.length()) h += "<p class='msg'>" + message + "</p>";
-    h += F("<form method='post' action='/connect'><label>Netzwerk</label>"
+    h += F("<form method='post' action='/connect'><label>Network</label>"
            "<input name='ssid' list='nets' autocomplete='off' required><datalist id='nets'>");
     h += options;
-    h += F("</datalist><label>Passwort</label><input name='pass' type='password'>"
-           "<button type='submit'>Verbinden</button></form></body></html>");
+    h += F("</datalist><label>Password</label><input name='pass' type='password'>"
+           "<button type='submit'>Connect</button></form></body></html>");
     return h;
 }
 
@@ -54,20 +54,20 @@ void wifi_portal_run()
     server.on("/", HTTP_GET, [&] { server.send(200, "text/html", form_page("", options)); });
     server.on("/connect", HTTP_POST, [&] {
         String ssid = server.arg("ssid"), pass = server.arg("pass");
-        if (ssid.isEmpty()) { server.send(200, "text/html", form_page("Bitte ein Netzwerk angeben.", options)); return; }
+        if (ssid.isEmpty()) { server.send(200, "text/html", form_page("Please enter a network name.", options)); return; }
 
         WiFi.begin(ssid.c_str(), pass.c_str());
         uint32_t t0 = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(250);
         if (WiFi.status() != WL_CONNECTED) {
             WiFi.disconnect(false, false);
-            server.send(200, "text/html", form_page("Verbindung fehlgeschlagen. Name und Passwort pruefen.", options));
+            server.send(200, "text/html", form_page("Connection failed. Check the name and the password.", options));
             return;
         }
         g_ssid = ssid;
         g_pass = pass;
         wifi_save_credentials();
-        server.send(200, "text/html", form_page("Verbunden. Das Geraet startet neu.", ""));
+        server.send(200, "text/html", form_page("Connected. The device is restarting.", ""));
         delay(1500);
         ESP.restart();
     });

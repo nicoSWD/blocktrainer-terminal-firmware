@@ -1,13 +1,13 @@
 #include "pages.h"
 
 const PageInfo PAGE_INFO[PAGE_COUNT] = {
-    { "PREIS",      "pg_price",  false },
+    { "PRICE",      "pg_price",  false },
     { "CHART",      "pg_chart",  false },
     { "BLOCK",      "pg_block",  false },
-    { "UHR",        "pg_clock",  false },
+    { "CLOCK",        "pg_clock",  false },
     { "BITAXE",     "pg_bitaxe", false },
     { "FEES",       "pg_fees",   false },
-    { "RECHNER",    "pg_conv",   true  },
+    { "CONVERTER",    "pg_conv",   true  },
     { "NEWS",       "pg_news",   false },
     { "DIFFICULTY", "pg_diff",   false },
 };

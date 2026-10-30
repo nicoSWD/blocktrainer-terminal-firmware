@@ -7,7 +7,7 @@
 
 // Full-screen status screens driven from setup() and the Wi-Fi/OTA code.
 enum UiScreen {
-    UI_WELCOME,          // "WLAN Setup wird gestartet..."
+    UI_WELCOME,          // "Starting Wi-Fi setup..."
     UI_WIFI_CONNECTING,
     UI_WIFI_CONNECTED,
     UI_WIFI_FAILED,
