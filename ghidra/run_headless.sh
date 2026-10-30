@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Import firmware.elf (if needed) and launch the GhidraMCP headless server.
-# Run on the machine where Ghidra is installed (tested on Kali / aarch64).
+# Run on the machine where Ghidra is installed (aarch64 Linux).
 set -euo pipefail
 
 GHIDRA_HOME="${GHIDRA_HOME:-$HOME/ghidra_12.1.4_PUBLIC}"
