@@ -7,16 +7,16 @@
 #define WIFI_SCAN_ATTEMPTS 3
 
 struct WifiAp {
-    String ssid;                   // empty for a hidden network
+    String ssid; // empty for a hidden network
     int rssi = -100;
     int channel = 0;
     uint8_t bssid[6] = {0};
 };
 
 struct WifiScan {
-    std::vector<WifiAp> aps;       // every access point that was found, strongest first
-    int code = 0;                  // result of the last WiFi.scanNetworks(): count, 0 = nothing found, < 0 = failed
-    int attempts = 0;              // scans that were run
+    std::vector<WifiAp> aps; // every access point that was found, strongest first
+    int code = 0;            // result of the last WiFi.scanNetworks(): count, 0 = nothing found, < 0 = failed
+    int attempts = 0;        // scans that were run
 };
 
 // Runs up to `attempts` scans (at least one). A scan that fails or finds nothing is retried after a short
@@ -34,12 +34,12 @@ std::vector<WifiAp> wifi_networks(const std::vector<WifiAp> &aps, size_t max);
 const WifiAp *wifi_find_ap(const std::vector<WifiAp> &aps, const String &ssid);
 
 struct WifiJoin {
-    bool ok = false;               // associated and got an address
-    bool found = false;            // the name was in the scan, so the strongest access point was pinned
-    int channel = 0;               // of the pinned access point
+    bool ok = false;    // associated and got an address
+    bool found = false; // the name was in the scan, so the strongest access point was pinned
+    int channel = 0;    // of the pinned access point
     int rssi = 0;
-    int scan_code = 0;             // as in WifiScan
-    int scan_count = 0;            // access points the scan found
+    int scan_code = 0;  // as in WifiScan
+    int scan_count = 0; // access points the scan found
 };
 
 // One connection attempt, the same for the boot connect and the reconnect task: drops any current link,

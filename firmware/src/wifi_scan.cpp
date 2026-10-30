@@ -4,17 +4,22 @@
 #include <freertos/semphr.h>
 #include "wifi_scan.h"
 
-static const uint32_t RETRY_PAUSE_MS = 800;         // grows with every retry
+static const uint32_t RETRY_PAUSE_MS = 800; // grows with every retry
 
 static void pause_ms(uint32_t ms, void (*tick)())
 {
     for (uint32_t t = 0; t < ms; t += 100) {
         delay(100);
-        if (tick) tick();
+        if (tick) {
+            tick();
+        }
     }
 }
 
-static bool stronger(const WifiAp &a, const WifiAp &b) { return a.rssi > b.rssi; }
+static bool stronger(const WifiAp &a, const WifiAp &b)
+{
+    return a.rssi > b.rssi;
+}
 
 // One owner of the radio at a time. Not recursive: the public functions lock, the *_locked ones below do not.
 static SemaphoreHandle_t radio_mutex()
@@ -24,8 +29,14 @@ static SemaphoreHandle_t radio_mutex()
 }
 
 struct RadioLock {
-    RadioLock() { xSemaphoreTake(radio_mutex(), portMAX_DELAY); }
-    ~RadioLock() { xSemaphoreGive(radio_mutex()); }
+    RadioLock()
+    {
+        xSemaphoreTake(radio_mutex(), portMAX_DELAY);
+    }
+    ~RadioLock()
+    {
+        xSemaphoreGive(radio_mutex());
+    }
     RadioLock(const RadioLock &) = delete;
     RadioLock &operator=(const RadioLock &) = delete;
 };
@@ -33,10 +44,14 @@ struct RadioLock {
 static WifiScan scan_locked(int attempts, void (*tick)())
 {
     WifiScan r;
-    if (attempts < 1) attempts = 1;
+    if (attempts < 1) {
+        attempts = 1;
+    }
     for (int a = 1; a <= attempts; a++) {
         r.attempts = a;
-        if (WiFi.status() != WL_CONNECTED) WiFi.disconnect(false, false);    // stop a pending join, keep the radio on
+        if (WiFi.status() != WL_CONNECTED) {
+            WiFi.disconnect(false, false); // stop a pending join, keep the radio on
+        }
         int n = WiFi.scanNetworks(false, false, false, 300);
         r.code = n;
         if (n > 0) {
@@ -46,7 +61,9 @@ static WifiScan scan_locked(int attempts, void (*tick)())
                 ap.rssi = WiFi.RSSI(i);
                 ap.channel = WiFi.channel(i);
                 const uint8_t *b = WiFi.BSSID(i);
-                if (b) memcpy(ap.bssid, b, 6);
+                if (b) {
+                    memcpy(ap.bssid, b, 6);
+                }
                 r.aps.push_back(ap);
             }
             WiFi.scanDelete();
@@ -54,7 +71,9 @@ static WifiScan scan_locked(int attempts, void (*tick)())
             return r;
         }
         WiFi.scanDelete();
-        if (a < attempts) pause_ms(RETRY_PAUSE_MS * a, tick);
+        if (a < attempts) {
+            pause_ms(RETRY_PAUSE_MS * a, tick);
+        }
     }
     return r;
 }
@@ -88,8 +107,13 @@ WifiJoin wifi_join(const String &ssid, const String &pass, uint32_t timeout_ms, 
     }
 
     for (uint32_t t0 = millis(); millis() - t0 < timeout_ms; delay(250)) {
-        if (WiFi.status() == WL_CONNECTED) { j.ok = true; return j; }
-        if (tick) tick();
+        if (WiFi.status() == WL_CONNECTED) {
+            j.ok = true;
+            return j;
+        }
+        if (tick) {
+            tick();
+        }
     }
     return j;
 }
@@ -100,20 +124,36 @@ std::vector<WifiAp> wifi_networks(const std::vector<WifiAp> &aps, size_t max)
     std::stable_sort(sorted.begin(), sorted.end(), stronger);
     std::vector<WifiAp> out;
     for (const WifiAp &ap : sorted) {
-        if (out.size() >= max) break;
-        if (ap.ssid.isEmpty()) continue;
+        if (out.size() >= max) {
+            break;
+        }
+        if (ap.ssid.isEmpty()) {
+            continue;
+        }
         bool seen = false;
-        for (const WifiAp &o : out) if (o.ssid == ap.ssid) { seen = true; break; }
-        if (!seen) out.push_back(ap);
+        for (const WifiAp &o : out) {
+            if (o.ssid == ap.ssid) {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen) {
+            out.push_back(ap);
+        }
     }
     return out;
 }
 
 const WifiAp *wifi_find_ap(const std::vector<WifiAp> &aps, const String &ssid)
 {
-    if (ssid.isEmpty()) return nullptr;
+    if (ssid.isEmpty()) {
+        return nullptr;
+    }
     const WifiAp *best = nullptr;
-    for (const WifiAp &ap : aps)
-        if (ap.ssid == ssid && (!best || ap.rssi > best->rssi)) best = &ap;
+    for (const WifiAp &ap : aps) {
+        if (ap.ssid == ssid && (!best || ap.rssi > best->rssi)) {
+            best = &ap;
+        }
+    }
     return best;
 }

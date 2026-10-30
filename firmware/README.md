@@ -29,6 +29,12 @@ the built-in ones, real touch or panel behaviour, FreeRTOS scheduling or heap pr
 `host/README.md`. `make ota-test` in the same folder runs the real OTA code against a scripted server that
 stalls, trickles, closes early, redirects and fails (GitHub release lookup, version compare, download loop).
 
+## Formatting
+
+`clang-format` with `firmware/.clang-format`, checked in CI. `scripts/format.sh` reformats `src/` and
+`host/`; `scripts/format.sh --check` only reports. Pinned version is in `AGENTS.md`; install it with
+`firmware/.venv/bin/pip install clang-format==23.1.3`.
+
 ## Install over USB
 
 With physical access to the board: `pip install esptool`, put the device in download mode (hold

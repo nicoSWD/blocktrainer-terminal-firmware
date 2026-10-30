@@ -4,9 +4,9 @@
 #include "config.h"
 
 struct PageInfo {
-    const char *name;       // label shown on the device and in the web page
-    const char *prefKey;    // NVS key of the enable flag; also the token used in `pageOrder`
-    bool menuOnly;          // reachable from the menu only, never part of the page rotation
+    const char *name;    // label shown on the device and in the web page
+    const char *prefKey; // NVS key of the enable flag; also the token used in `pageOrder`
+    bool menuOnly;       // reachable from the menu only, never part of the page rotation
 };
 
 extern const PageInfo PAGE_INFO[PAGE_COUNT];

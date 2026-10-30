@@ -12,8 +12,11 @@ bool ota_version_newer(const String &current, const String &remote)
     int c[3] = {0, 0, 0}, r[3] = {0, 0, 0};
     sscanf(current.c_str(), "%d.%d.%d", &c[0], &c[1], &c[2]);
     sscanf(remote.c_str(), "%d.%d.%d", &r[0], &r[1], &r[2]);
-    for (int i = 0; i < 3; i++)
-        if (r[i] != c[i]) return r[i] > c[i];
+    for (int i = 0; i < 3; i++) {
+        if (r[i] != c[i]) {
+            return r[i] > c[i];
+        }
+    }
     return false;
 }
 
@@ -46,7 +49,7 @@ void ota_check()
         DBG("ota: http.begin() failed\n");
         return;
     }
-    http.setUserAgent("bt-terminal-firmware/" FIRMWARE_VERSION);    // GitHub rejects requests without one
+    http.setUserAgent("bt-terminal-firmware/" FIRMWARE_VERSION); // GitHub rejects requests without one
     http.addHeader("Accept", "application/vnd.github+json");
     int code = http.GET();
     if (code != 200) {
@@ -57,11 +60,12 @@ void ota_check()
     String payload = http.getString();
     http.end();
 
-    StaticJsonDocument<256> filter;       // 5 slots (80 bytes on the device); roomy on purpose, an overflowing filter silently drops keys
+    StaticJsonDocument<256> filter; // 5 slots (80 bytes on the device); roomy on purpose, an overflowing
+                                    // filter silently drops keys
     filter["tag_name"] = true;
     filter["assets"][0]["name"] = true;
     filter["assets"][0]["browser_download_url"] = true;
-    DynamicJsonDocument doc(16384);       // ~200 bytes per asset: room for dozens, the filter drops everything else
+    DynamicJsonDocument doc(16384); // ~200 bytes per asset: room for dozens, the filter drops everything else
     DeserializationError err = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
     if (err) {
         DBG("ota: release JSON error %s\n", err.c_str());
@@ -69,7 +73,9 @@ void ota_check()
     }
 
     String version = doc["tag_name"] | "";
-    if (version.startsWith("v") || version.startsWith("V")) version = version.substring(1);
+    if (version.startsWith("v") || version.startsWith("V")) {
+        version = version.substring(1);
+    }
     ota.remoteVersion = version;
     DBG("ota: remote %s, current %s\n", ota.remoteVersion.c_str(), FIRMWARE_VERSION);
 
@@ -77,12 +83,18 @@ void ota_check()
     if (!version.isEmpty()) {
         String wanted = String(OTA_ASSET_PREFIX) + version + OTA_ASSET_SUFFIX;
         for (JsonObject asset : doc["assets"].as<JsonArray>()) {
-            if (wanted != (asset["name"] | "")) continue;
+            if (wanted != (asset["name"] | "")) {
+                continue;
+            }
             url = asset["browser_download_url"] | "";
-            if (!url.isEmpty()) break;          // a matching entry without a URL is not an offer
+            if (!url.isEmpty()) {
+                break; // a matching entry without a URL is not an offer
+            }
         }
     }
-    if (url.isEmpty() || !ota_version_newer(FIRMWARE_VERSION, ota.remoteVersion)) return;
+    if (url.isEmpty() || !ota_version_newer(FIRMWARE_VERSION, ota.remoteVersion)) {
+        return;
+    }
     ota.firmwareUrl = url;
     ota.stage = OTA_AVAILABLE;
     ota.active = true;
@@ -97,7 +109,10 @@ static void fail(const String &message)
 
 static void download_and_flash(const String &url)
 {
-    if (url.isEmpty()) { fail("empty firmware URL"); return; }
+    if (url.isEmpty()) {
+        fail("empty firmware URL");
+        return;
+    }
     ota.stage = OTA_DOWNLOADING;
     ota.downloaded = 0;
     ota.total = 0;
@@ -107,15 +122,18 @@ static void download_and_flash(const String &url)
     http.setConnectTimeout(10000);
     http.setTimeout(15000);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    if (!http.begin(url)) { fail("http.begin() failed"); return; }
+    if (!http.begin(url)) {
+        fail("http.begin() failed");
+        return;
+    }
     int code = http.GET();
     if (code != 200) {
         fail("HTTP " + String(code));
         http.end();
         return;
     }
-    int len = http.getSize();            // -1 when the server sends no length
-    if (len == 0) {                      // an empty body is never a firmware image
+    int len = http.getSize(); // -1 when the server sends no length
+    if (len == 0) {           // an empty body is never a firmware image
         fail("empty download");
         http.end();
         return;
@@ -132,22 +150,32 @@ static void download_and_flash(const String &url)
     int written = 0;
     uint32_t last_log = millis(), last_progress = millis();
 #ifndef OTA_STALL_MS
-#define OTA_STALL_MS 20000                          // the host test shortens this
+#define OTA_STALL_MS 20000 // the host test shortens this
 #endif
-    static const uint32_t STALL_MS = OTA_STALL_MS;  // no byte for this long: give up
+    static const uint32_t STALL_MS = OTA_STALL_MS; // no byte for this long: give up
     bool failed = false;
     while (http.connected() && (len < 0 || written < len)) {
         size_t avail = stream->available();
         if (!avail) {
-            if (millis() - last_progress > STALL_MS) { failed = true; break; }
+            if (millis() - last_progress > STALL_MS) {
+                failed = true;
+                break;
+            }
             delay(1);
             continue;
         }
         size_t want = min(avail, sizeof(buf));
-        if (len > 0) want = min(want, (size_t)(len - written));     // never read or write past the announced size
+        if (len > 0) {
+            want = min(want, (size_t)(len - written)); // never read or write past the announced size
+        }
         int n = stream->readBytes(buf, want);
-        if (n <= 0) break;
-        if (Update.write(buf, n) != (size_t)n) { failed = true; break; }
+        if (n <= 0) {
+            break;
+        }
+        if (Update.write(buf, n) != (size_t)n) {
+            failed = true;
+            break;
+        }
         written += n;
         ota.downloaded = written;
         last_progress = millis();
@@ -185,13 +213,17 @@ static void ota_task(void *)
 
 void ota_start_task()
 {
-    if (ota.taskRunning) return;
+    if (ota.taskRunning) {
+        return;
+    }
     ota.taskRunning = true;
     xTaskCreatePinnedToCore(ota_task, "OTAUpdateTask", 0x3000, nullptr, 1, nullptr, 1);
 }
 
 int ota_progress_percent()
 {
-    if (ota.total > 0) return (int)((int64_t)ota.downloaded * 100 / ota.total);
+    if (ota.total > 0) {
+        return (int)((int64_t)ota.downloaded * 100 / ota.total);
+    }
     return 0;
 }
