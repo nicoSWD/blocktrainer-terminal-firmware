@@ -197,8 +197,8 @@ What each harness covers and does not cover is in `firmware/host/README.md`.
 ## License
 
 The code in this repository is released under the [MIT License](LICENSE). Third-party libraries
-that end up in the firmware image (LVGL, ArduinoJson, FastLED, LovyanGFX, the Arduino-ESP32 core
-and ESP-IDF) keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+that end up in the firmware image (LVGL, ArduinoJson, FastLED, LovyanGFX, the Arduino-ESP32 core,
+ESP-IDF and the Roboto and Montserrat fonts) keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 The MIT license covers this project's own code only. The name "Blocktrainer", the `blocktrainer.de`
 servers and APIs the firmware talks to, and the stock firmware itself belong to blocktrainer.de and
