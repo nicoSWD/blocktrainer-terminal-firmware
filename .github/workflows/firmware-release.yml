@@ -174,3 +174,44 @@ jobs:
           else
             gh release create "$TAG" release-assets/* --title "Firmware $VERSION" --notes-file "$NOTES_FILE"
           fi
+
+      # The binaries above already carry the tag's version via -DFIRMWARE_VERSION; this keeps the
+      # default in config.h in step so local builds don't report a stale number. It is a commit after
+      # the release (not before the tag) because a tag pushed with GITHUB_TOKEN would not start this
+      # workflow. A manual run only shows what the bump would change.
+      - name: Bump FIRMWARE_VERSION default in config.h
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          IS_RELEASE: ${{ steps.version.outputs.is_release }}
+        run: |
+          if [ "$IS_RELEASE" != "true" ]; then
+            if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              rc=0
+              .github/scripts/bump-firmware-version.sh "$VERSION" || rc=$?
+              [ "$rc" = 0 ] || [ "$rc" = 3 ] || exit "$rc"
+              git diff
+            else
+              echo "Dry run skipped: '$VERSION' is not MAJOR.MINOR.PATCH"
+            fi
+            exit 0
+          fi
+
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::notice::$GITHUB_REF_NAME is not on main, config.h left alone"
+            exit 0
+          fi
+
+          git checkout -B main origin/main
+          rc=0
+          .github/scripts/bump-firmware-version.sh "$VERSION" || rc=$?
+          if [ "$rc" = 3 ]; then exit 0; fi
+          if [ "$rc" != 0 ]; then exit "$rc"; fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump FIRMWARE_VERSION to $VERSION [skip ci]"
+          if ! git push origin main; then
+            git pull --rebase origin main
+            git push origin main
+          fi
