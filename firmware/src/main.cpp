@@ -19,8 +19,8 @@
 static bool s_have_display = false;
 
 // Connection attempts (about 25 s each, alternating between the known networks) before the setup
-// screen appears.
-// Generous on purpose: after a power cut the router often boots slower than the device.
+// screen appears, once a network has been saved. Generous on purpose: after a power cut the
+// router often boots slower than the device.
 static const int MAX_ATTEMPTS = 6;
 static const uint32_t OTA_PROMPT_TIMEOUT_MS = 120000;     // the update prompt skips itself after this
 static const uint32_t WIZARD_TIMEOUT_MS = 300000;         // then the setup access point takes over
@@ -55,20 +55,27 @@ static bool try_candidate(const WifiCandidate &c)
     return true;
 }
 
-// Tries the built-in network (include/secrets.h, if present) and the stored credentials in turn.
-// When neither works the setup wizard runs on the screen, or the setup access point when there
-// is no usable screen.
+// With a network saved from a previous run of the wizard, tries the built-in network
+// (include/secrets.h, if present) and the stored credentials in turn, patiently (a router that
+// boots slower than the device after a power cut is waited for). Nothing saved yet is a device
+// that has never been set up: a single attempt at the built-in network, then straight to the
+// wizard instead of waiting, since there is no known-good network worth retrying for. Either way,
+// when nothing connects the setup wizard runs on the screen, or the setup access point when there
+// is no usable screen; the wizard saves what it connects to, so this only happens once.
 static void connect_wifi()
 {
+    bool have_saved = wifi_load_credentials();
+
     std::vector<WifiCandidate> candidates;
 #ifdef BUILTIN_WIFI_SSID
     candidates.push_back({ BUILTIN_WIFI_SSID, BUILTIN_WIFI_PASS, false });
 #endif
-    if (wifi_load_credentials()) candidates.push_back({ g_ssid, g_pass, true });
+    if (have_saved) candidates.push_back({ g_ssid, g_pass, true });
 
-    for (int attempt = 0; attempt < MAX_ATTEMPTS && !candidates.empty(); attempt++) {
+    int attempts = have_saved ? MAX_ATTEMPTS : (candidates.empty() ? 0 : 1);
+    for (int attempt = 0; attempt < attempts; attempt++) {
         const WifiCandidate &c = candidates[attempt % candidates.size()];
-        DBG("wifi: attempt %d of %d (%s)\n", attempt + 1, MAX_ATTEMPTS, c.ssid.c_str());
+        DBG("wifi: attempt %d of %d (%s)\n", attempt + 1, attempts, c.ssid.c_str());
         if (try_candidate(c)) return;
         ui_show(UI_WIFI_FAILED);
         g_wifi_reconnecting = false;

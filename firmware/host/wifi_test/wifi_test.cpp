@@ -238,6 +238,83 @@ static void find_ap()
     CHECK(a && a->rssi == -10, "case sensitive match");
 }
 
+// ---------------------------------------------------------------- joining
+
+static void join_pins_strongest_ap()
+{
+    printf("join: pins the strongest access point\n");
+    fresh();
+    g_radio.env = { ap("Lab", -70, 11, 0x40), ap("Other", -40, 1, 0x50), ap("Lab", -50, 6, 0x60) };
+    g_radio.accept["Lab"] = "pw";
+    WifiJoin j = wifi_join("Lab", "pw", 20000);
+    CHECK(j.ok && j.found, "ok=%d found=%d", j.ok, j.found);
+    CHECK(j.channel == 6 && j.rssi == -50, "channel %d rssi %d", j.channel, j.rssi);
+    CHECK(g_radio.begin_calls == 1 && g_radio.begin_pinned && g_radio.begin_channel == 6, "begin calls %d channel %d", g_radio.begin_calls, g_radio.begin_channel);
+    CHECK(g_radio.begin_bssid[0] == 0x60, "bssid %02x", g_radio.begin_bssid[0]);
+    CHECK(g_radio.disconnect_calls >= 1, "the old link is dropped first");
+    CHECK(g_radio.waited_ms < 20000, "returned as soon as connected (%u ms)", g_radio.waited_ms);
+}
+
+static void join_not_in_scan()
+{
+    printf("join: name not in the scan falls back to a plain connect\n");
+    fresh();
+    g_radio.env = { ap("Other", -40, 1, 0x50) };
+    g_radio.accept["Hidden"] = "pw";
+    WifiJoin j = wifi_join("Hidden", "pw", 20000);
+    CHECK(j.ok && !j.found, "ok=%d found=%d", j.ok, j.found);
+    CHECK(g_radio.begin_calls == 1 && !g_radio.begin_pinned && g_radio.begin_channel == 0, "plain begin expected");
+    fresh();                                        // empty air and a failing scan: still tries to connect
+    g_radio.forced = { -2, -2 };
+    g_radio.accept["Home"] = "pw";
+    j = wifi_join("Home", "pw", 20000);
+    CHECK(j.ok && !j.found && j.scan_code == -2, "ok=%d found=%d code=%d", j.ok, j.found, j.scan_code);
+}
+
+static void join_wrong_password()
+{
+    printf("join: wrong password waits the full timeout\n");
+    fresh();
+    g_radio.env = { ap("Lab", -50, 6, 0x60) };
+    g_radio.accept["Lab"] = "right";
+    uint32_t t0 = millis();
+    WifiJoin j = wifi_join("Lab", "wrong", 20000);
+    uint32_t took = millis() - t0;
+    CHECK(!j.ok && j.found, "ok=%d found=%d", j.ok, j.found);
+    CHECK(g_radio.begin_calls == 1, "one begin");
+    CHECK(took >= 20000 && took < 20000 + 4000 + 2 * 3500 + 1000, "took %u ms", took);
+    // the next attempt starts clean: the pending (failed) join must not block the scan
+    g_radio.env = { ap("Lab", -50, 6, 0x60) };
+    j = wifi_join("Lab", "right", 20000);
+    CHECK(j.ok && j.scan_count == 1, "second attempt ok=%d scan_count=%d", j.ok, j.scan_count);
+}
+
+static void join_slow_network()
+{
+    printf("join: a network slower than the timeout fails, a faster one works\n");
+    fresh();
+    g_radio.env = { ap("Lab", -50) };
+    g_radio.accept["Lab"] = "pw";
+    g_radio.join_ms = 25000;
+    CHECK(!wifi_join("Lab", "pw", 20000).ok, "joined after the timeout");
+    fresh();
+    g_radio.env = { ap("Lab", -50) };
+    g_radio.accept["Lab"] = "pw";
+    g_radio.join_ms = 19000;
+    CHECK(wifi_join("Lab", "pw", 20000).ok, "joined within the timeout");
+}
+
+static void join_scan_recovers()
+{
+    printf("join: a scan that fails once is retried\n");
+    fresh();
+    g_radio.env = { ap("Lab", -50, 3, 0x70) };
+    g_radio.accept["Lab"] = "pw";
+    g_radio.forced = { -2, -1 };
+    WifiJoin j = wifi_join("Lab", "pw", 20000);
+    CHECK(j.ok && j.found && g_radio.scan_calls == 2, "ok=%d found=%d scans=%d", j.ok, j.found, g_radio.scan_calls);
+}
+
 static void randomised()
 {
     printf("randomised: 2000 lists against a reference\n");
@@ -286,6 +363,11 @@ int main()
     scan_data();
     networks_list();
     find_ap();
+    join_pins_strongest_ap();
+    join_not_in_scan();
+    join_wrong_password();
+    join_slow_network();
+    join_scan_recovers();
     randomised();
     printf("\n%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

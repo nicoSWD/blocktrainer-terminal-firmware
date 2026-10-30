@@ -1,12 +1,21 @@
 // A scriptable Wi-Fi radio and a virtual clock for the host Wi-Fi scan test. The radio models what the
 // ESP32 does that matters for scanning: a scan fails while a join is pending until disconnect() is called,
 // results disappear after scanDelete(), and tests can force any return code for the next scans.
+#include <string.h>
 #include "WiFi.h"
 #include "wifi_test_radio.h"
 
 static uint32_t g_now = 0;
 extern "C" uint32_t millis(void) { return g_now; }
-extern "C" void delay(uint32_t ms) { g_now += ms; g_radio.waited_ms += ms; }
+extern "C" void delay(uint32_t ms)
+{
+    g_now += ms;
+    g_radio.waited_ms += ms;
+    if (g_radio.join_pending && g_now >= g_radio.join_done_at) {
+        g_radio.join_pending = false;
+        g_host_wifi_connected = true;
+    }
+}
 extern "C" time_t host_time(time_t *t) { if (t) *t = 0; return 0; }
 
 bool g_host_wifi_connected = false;
@@ -50,7 +59,25 @@ bool WiFiClass::disconnect(bool, bool)
 {
     g_radio.disconnect_calls++;
     g_radio.busy_joining = false;
+    g_radio.join_pending = false;
+    g_host_wifi_connected = false;
     return true;
+}
+
+wl_status_t WiFiClass::begin(const char *ssid, const char *pass, int32_t channel, const uint8_t *bssid, bool)
+{
+    g_radio.begin_calls++;
+    g_radio.begin_ssid = ssid ? ssid : "";
+    g_radio.begin_channel = channel;
+    g_radio.begin_pinned = bssid != nullptr;
+    if (bssid) memcpy(g_radio.begin_bssid, bssid, 6);
+    auto it = g_radio.accept.find(g_radio.begin_ssid);
+    g_radio.busy_joining = true;                     // a pending join keeps the radio busy until disconnect()
+    if (it != g_radio.accept.end() && it->second == (pass ? pass : "")) {
+        g_radio.join_pending = true;
+        g_radio.join_done_at = g_now + g_radio.join_ms;
+    }
+    return WL_DISCONNECTED;
 }
 
 void WiFiClass::scanDelete()

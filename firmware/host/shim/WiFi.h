@@ -32,6 +32,8 @@ public:
     int32_t RSSI(int i);
     int32_t channel(int i);
     const uint8_t *BSSID(int i);
+    wl_status_t begin(const char *ssid, const char *pass = nullptr, int32_t channel = 0,
+                      const uint8_t *bssid = nullptr, bool connect = true);
     bool disconnect(bool wifioff = false, bool eraseap = false);
     void scanDelete();
 };

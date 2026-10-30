@@ -96,11 +96,13 @@ Wi-Fi, OTA and the web server do not depend on the display or on the sound/LED d
   stored network does not connect, the access point `BTClock-Setup` serves a form at
   `http://192.168.4.1/`; while nobody uses it the stored network is retried every 30 s. An
   available update installs without a prompt and the device restarts into it.
-* **Wi-Fi order:** a network compiled in from `include/secrets.h` (gitignored; copy
-  `secrets.example.h`) is tried first, then the credentials stored in NVS, alternating for six
-  attempts (about 3 minutes) before the setup screen appears, so a router that boots slower than the
-  device after a power cut is waited for. The built-in network is never written to NVS, so the stock
-  credentials stay as they were. The password is in clear text inside `firmware.bin`: do not share
+* **Wi-Fi order:** once a network has been saved (from a previous run of the setup wizard), a network
+  compiled in from `include/secrets.h` (gitignored; copy `secrets.example.h`) is tried first, then
+  the saved credentials, alternating for six attempts (about 3 minutes) before the setup screen
+  appears, so a router that boots slower than the device after a power cut is waited for. Before
+  anything has been saved there is no known-good network worth that wait: the built-in network (if
+  any) gets a single attempt, then the wizard appears. The built-in network is never written to NVS,
+  so the stock credentials stay as they were. The password is in clear text inside `firmware.bin`: do not share
   images built with it.
 * **The update prompt skips itself after 2 minutes** (a blank or unresponsive panel cannot hold the
   device), and the web server is already running while it is up. `curl http://<ip>/ota` reports

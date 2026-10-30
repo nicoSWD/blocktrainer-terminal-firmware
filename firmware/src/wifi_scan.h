@@ -32,3 +32,18 @@ std::vector<WifiAp> wifi_networks(const std::vector<WifiAp> &aps, size_t max);
 
 // The strongest access point that has exactly this name, or nullptr (also for an empty name).
 const WifiAp *wifi_find_ap(const std::vector<WifiAp> &aps, const String &ssid);
+
+struct WifiJoin {
+    bool ok = false;               // associated and got an address
+    bool found = false;            // the name was in the scan, so the strongest access point was pinned
+    int channel = 0;               // of the pinned access point
+    int rssi = 0;
+    int scan_code = 0;             // as in WifiScan
+    int scan_count = 0;            // access points the scan found
+};
+
+// One connection attempt, the same for the boot connect and the reconnect task: drops any current link,
+// scans, pins the strongest access point with this exact name (plain begin() when the scan does not see
+// it), then waits up to `timeout_ms` for the connection. Holds the radio for the whole attempt, so a
+// second user (a scan for the wizard's network list) waits instead of disconnecting a join in progress.
+WifiJoin wifi_join(const String &ssid, const String &pass, uint32_t timeout_ms, void (*tick)() = nullptr);
