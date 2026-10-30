@@ -38,7 +38,12 @@ See the table in `firmware/README.md` ("Layout" section) for the file-to-role ma
 - Formatting is `clang-format` (config: `firmware/.clang-format`), enforced in CI. Run
   `scripts/format.sh` before committing (`--check` to verify). Install the pinned version with
   `firmware/.venv/bin/pip install clang-format==23.1.3`; a different version can format differently.
-
+  - Control-flow bodies always get braces (`InsertBraces`), and one-liner lambdas/ifs are expanded;
+    don't fight the formatter by hand, change `.clang-format` if a rule is wrong.
+  - A trailing comment on a line that the formatter expands can make the output unstable (a second
+    run changes it). Put such comments on their own line above the code.
+  - Don't mix a version bump or style change of the formatter with other edits: reformat in its own
+    commit and add its hash to `.git-blame-ignore-revs`.
 - No comments explaining *what* code does; only *why*, for non-obvious constraints
   (hardware quirks, a specific bug workaround, an invariant that would surprise a reader).
 - Keep the host test suite (`firmware/host/`) in sync with any change to `src/` logic it
