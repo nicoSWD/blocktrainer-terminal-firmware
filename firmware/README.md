@@ -62,7 +62,8 @@ mitmproxy --mode transparent --emudhra -s scripts/mitm_firmware.py     # from th
 
 The proxy is only needed once, to get off the stock firmware. `FAKE_VERSION` in
 `scripts/mitm_firmware.py` just has to be above the stock version (1.8.2); it is unrelated to
-`FIRMWARE_VERSION`, which is `0.1.0` here and is set from the git tag in the release workflow.
+`FIRMWARE_VERSION`. The release workflow builds with the version from the git tag, then commits
+that version to the default in `src/config.h` on `main` (`.github/scripts/bump-firmware-version.sh`).
 
 **Updates after that come from GitHub.** At boot (when "check for updates" is on) and on `/ota`, the
 firmware asks `api.github.com/repos/nicoSWD/blocktrainer-terminal-firmware/releases/latest` and compares
