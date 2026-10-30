@@ -15,6 +15,14 @@ flashing tools needed, or over USB with `esptool` if you have physical access to
 > it working with blocktrainer.de's services. You are solely responsible for what you do with it.
 > See [Disclaimer](#disclaimer).
 
+## Screenshots
+
+Rendered from the real UI code by the host test harness (`firmware/host`), not photographed.
+
+| Price chart | Block height |
+|---|---|
+| <img src="docs/screenshots/price-chart.png" width="400" alt="Price chart page"> | <img src="docs/screenshots/block-height.png" width="400" alt="Block height page"> |
+
 ## The device
 
 - **WT32-SC01 Plus** (ESP32-S3), 3.5" touch LCD
