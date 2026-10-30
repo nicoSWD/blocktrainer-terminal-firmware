@@ -1,22 +1,20 @@
 #include "pages.h"
 
 const PageInfo PAGE_INFO[PAGE_COUNT] = {
-    { "PRICE",      "pg_price",  false },
-    { "CHART",      "pg_chart",  false },
-    { "BLOCK",      "pg_block",  false },
-    { "CLOCK",        "pg_clock",  false },
-    { "BITAXE",     "pg_bitaxe", false },
-    { "FEES",       "pg_fees",   false },
-    { "CONVERTER",    "pg_conv",   true  },
-    { "NEWS",       "pg_news",   false },
-    { "DIFFICULTY", "pg_diff",   false },
+    {"PRICE", "pg_price", false},   {"CHART", "pg_chart", false},   {"BLOCK", "pg_block", false},
+    {"CLOCK", "pg_clock", false},   {"BITAXE", "pg_bitaxe", false}, {"FEES", "pg_fees", false},
+    {"CONVERTER", "pg_conv", true}, {"NEWS", "pg_news", false},     {"DIFFICULTY", "pg_diff", false},
 };
 
 std::vector<int> page_order()
 {
     std::vector<int> order;
     auto listed = [&](int page) {
-        for (int p : order) if (p == page) return true;
+        for (int p : order) {
+            if (p == page) {
+                return true;
+            }
+        }
         return false;
     };
 
@@ -31,10 +29,15 @@ std::vector<int> page_order()
                 break;
             }
         }
-        if (comma < 0) break;
+        if (comma < 0) {
+            break;
+        }
         start = comma + 1;
     }
-    for (int i = 0; i < PAGE_COUNT; i++)
-        if (!PAGE_INFO[i].menuOnly && !listed(i)) order.push_back(i);
+    for (int i = 0; i < PAGE_COUNT; i++) {
+        if (!PAGE_INFO[i].menuOnly && !listed(i)) {
+            order.push_back(i);
+        }
+    }
     return order;
 }

@@ -9,5 +9,5 @@
 #include <Arduino.h>
 
 void web_begin();
-void web_loop();                            // call from loop()
-extern volatile bool g_restart_requested;   // set by /restart, silences the Wi-Fi reconnect logic
+void web_loop();                          // call from loop()
+extern volatile bool g_restart_requested; // set by /restart, silences the Wi-Fi reconnect logic

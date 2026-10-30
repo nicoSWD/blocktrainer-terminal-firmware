@@ -28,7 +28,9 @@ bool wifi_load_credentials()
     String ssid = p.getString("ssid", "");
     String pass = p.getString("password", "");
     p.end();
-    if (ssid.isEmpty()) return false;
+    if (ssid.isEmpty()) {
+        return false;
+    }
     g_ssid = ssid;
     g_pass = pass;
     return true;
@@ -57,15 +59,24 @@ static void on_wifi_event(arduino_event_id_t id, arduino_event_info_t)
         ui_notify_wifi_restored();
         return;
     }
-    if (id != ARDUINO_EVENT_WIFI_STA_DISCONNECTED) return;
-    if (g_restart_requested || g_wifi_reconnecting) return;
+    if (id != ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+        return;
+    }
+    if (g_restart_requested || g_wifi_reconnecting) {
+        return;
+    }
     bool silent = g_wifi_silent_drop;
     g_wifi_reconnecting = true;
-    if (!silent) ui_notify_wifi_lost();
+    if (!silent) {
+        ui_notify_wifi_lost();
+    }
     wifi_start_reconnect_task(false);
 }
 
-void wifi_start_events() { WiFi.onEvent(on_wifi_event); }
+void wifi_start_events()
+{
+    WiFi.onEvent(on_wifi_event);
+}
 
 // ---------------------------------------------------------------- reconnect task
 
@@ -82,8 +93,11 @@ static void reconnect_task(void *param)
         DBG("wifi: attempt %d\n", attempt);
         WifiJoin j = wifi_join(g_ssid, g_pass, CONNECT_TIMEOUT_MS);
         DBG("wifi: scan found %d access points (code %d)\n", j.scan_count, j.scan_code);
-        if (j.found) DBG("wifi: strongest AP for %s on channel %d (%d dBm)\n", g_ssid.c_str(), j.channel, j.rssi);
-        else DBG("wifi: SSID not in scan, plain connect\n");
+        if (j.found) {
+            DBG("wifi: strongest AP for %s on channel %d (%d dBm)\n", g_ssid.c_str(), j.channel, j.rssi);
+        } else {
+            DBG("wifi: SSID not in scan, plain connect\n");
+        }
         if (j.ok) {
             WiFi.setAutoReconnect(false);
             DBG("wifi: connected\n");
@@ -103,15 +117,15 @@ static void reconnect_task(void *param)
 
 void wifi_start_reconnect_task(bool initial)
 {
-    xTaskCreatePinnedToCore(reconnect_task, "WiFiReconnect", 0x2000,
-                            initial ? (void *)1 : nullptr, 1, nullptr, 1);
+    xTaskCreatePinnedToCore(reconnect_task, "WiFiReconnect", 0x2000, initial ? (void *)1 : nullptr, 1,
+                            nullptr, 1);
 }
 
 // ---------------------------------------------------------------- watchdog
 
 static const uint32_t WATCHDOG_PERIOD_MS = 5000;
-static const uint32_t STALL_LIMIT_MS     = 180000;   // no successful fetch for 3 min
-static const uint32_t KICK_INTERVAL_MS   = 30000;
+static const uint32_t STALL_LIMIT_MS = 180000; // no successful fetch for 3 min
+static const uint32_t KICK_INTERVAL_MS = 30000;
 
 // When data pages are enabled but nothing has been fetched for a while, drop the link
 // silently so the reconnect task rebuilds it.
@@ -122,17 +136,25 @@ static void watchdog_task(void *)
         vTaskDelay(WATCHDOG_PERIOD_MS);
         bool needs_data = cfg.pg[PAGE_PRICE] || cfg.pg[PAGE_CHART] || cfg.pg[PAGE_BLOCK] ||
                           cfg.pg[PAGE_BITAXE] || cfg.pg[PAGE_FEES];
-        if (!needs_data || live.lastFetchMs == 0) continue;
+        if (!needs_data || live.lastFetchMs == 0) {
+            continue;
+        }
 
         uint32_t now = millis();
         uint32_t age = now - live.lastFetchMs;
-        if (age < STALL_LIMIT_MS) continue;
-        if (last_kick != 0 && now - last_kick < KICK_INTERVAL_MS) continue;
-        if (g_wifi_reconnecting) continue;
+        if (age < STALL_LIMIT_MS) {
+            continue;
+        }
+        if (last_kick != 0 && now - last_kick < KICK_INTERVAL_MS) {
+            continue;
+        }
+        if (g_wifi_reconnecting) {
+            continue;
+        }
 
         s_watchdog_kicks++;
-        DBG("watchdog: no fetch for %lu ms, dropping link (kick %lu)\n",
-            (unsigned long)age, (unsigned long)s_watchdog_kicks);
+        DBG("watchdog: no fetch for %lu ms, dropping link (kick %lu)\n", (unsigned long)age,
+            (unsigned long)s_watchdog_kicks);
         g_wifi_silent_drop = true;
         WiFi.disconnect(true, false);
         last_kick = now;

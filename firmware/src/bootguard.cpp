@@ -24,18 +24,24 @@ static void watchdog_task(void *)
 {
     for (;;) {
         vTaskDelay(1000);
-        if (millis() - s_last_feed_ms < HANG_LIMIT_MS) continue;
+        if (millis() - s_last_feed_ms < HANG_LIMIT_MS) {
+            continue;
+        }
         Preferences p;
         p.begin(NS, false);
         p.putUChar("crashes", p.getUChar("crashes", 0) + 1);
         p.end();
         Serial.println("boot watchdog: no progress, restarting");
-        diag_printf("boot watchdog: no progress for %lu s, restarting\n", (unsigned long)(HANG_LIMIT_MS / 1000));
+        diag_printf("boot watchdog: no progress for %lu s, restarting\n",
+                    (unsigned long)(HANG_LIMIT_MS / 1000));
         esp_restart();
     }
 }
 
-void boot_guard_feed() { s_last_feed_ms = millis(); }
+void boot_guard_feed()
+{
+    s_last_feed_ms = millis();
+}
 
 static bool crash_reason(esp_reset_reason_t r)
 {
@@ -62,21 +68,31 @@ void boot_guard_begin()
     boot_guard_feed();
     xTaskCreate(watchdog_task, "bootwd", 3072, nullptr, 5, nullptr);
 #ifdef FORCE_SAFE_MODE
-    s_safe = true;                              // `pio run -e safe`: networking only, for bring-up
+    s_safe = true; // `pio run -e safe`: networking only, for bring-up
 #endif
-    Serial.printf("boot guard: reset reason %d, %d crash(es) in a row%s\n", (int)esp_reset_reason(), s_crashes,
-                  s_safe ? ", SAFE MODE" : "");
+    Serial.printf("boot guard: reset reason %d, %d crash(es) in a row%s\n", (int)esp_reset_reason(),
+                  s_crashes, s_safe ? ", SAFE MODE" : "");
 }
 
-bool boot_guard_safe_mode() { return s_safe; }
-int boot_guard_crashes() { return s_crashes; }
+bool boot_guard_safe_mode()
+{
+    return s_safe;
+}
+int boot_guard_crashes()
+{
+    return s_crashes;
+}
 
 void boot_guard_tick()
 {
     boot_guard_feed();
-    if (s_stable || s_safe || millis() < STABLE_AFTER_MS) return;
+    if (s_stable || s_safe || millis() < STABLE_AFTER_MS) {
+        return;
+    }
     s_stable = true;
-    if (s_crashes == 0) return;
+    if (s_crashes == 0) {
+        return;
+    }
     Preferences p;
     p.begin(NS, false);
     p.putUChar("crashes", 0);

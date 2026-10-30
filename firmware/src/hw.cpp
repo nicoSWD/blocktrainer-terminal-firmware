@@ -6,8 +6,8 @@
 
 // ---------------------------------------------------------------- pins (see HARDWARE.md)
 
-static const int PIN_I2S_BCK  = 36;
-static const int PIN_I2S_WS   = 35;
+static const int PIN_I2S_BCK = 36;
+static const int PIN_I2S_WS = 35;
 static const int PIN_I2S_DOUT = 37;
 static const int PIN_LED_DATA = 10;
 
@@ -22,7 +22,7 @@ static const int SAMPLE_RATE = 22050;
 static int16_t *s_click = nullptr;
 static const int CLICK_FRAMES = 1764;
 static volatile bool s_playing = false;
-static bool s_hw_ok = false;             // set once hw_init() ran; every function is a no-op before
+static bool s_hw_ok = false; // set once hw_init() ran; every function is a no-op before
 
 static void i2s_start()
 {
@@ -53,7 +53,9 @@ static void render_click()
 {
     free(s_click);
     s_click = (int16_t *)malloc(CLICK_FRAMES * 2 * sizeof(int16_t));
-    if (!s_click) return;
+    if (!s_click) {
+        return;
+    }
     float amplitude = cfg.buzzerVolume / 100.0f * 32000.0f;
     for (int i = 0; i < CLICK_FRAMES; i++) {
         float t = (float)i / SAMPLE_RATE;
@@ -84,7 +86,7 @@ static void click_task(void *)
 // followed by 40 ms of silence.
 static void alert_task(void *)
 {
-    static const int TONES_HZ[3] = { 440, 660, 880 };
+    static const int TONES_HZ[3] = {440, 660, 880};
     static const int TONE_FRAMES = 3307;
     static const int FULL_FRAMES = 2204;
     static const int GAP_FRAMES = 882;
@@ -97,7 +99,8 @@ static void alert_task(void *)
             for (int tone = 0; tone < 3; tone++) {
                 float w = 2.0f * (float)M_PI * TONES_HZ[tone] / SAMPLE_RATE;
                 for (int i = 0; i < TONE_FRAMES; i++) {
-                    float env = i < FULL_FRAMES ? 1.0f : (float)(TONE_FRAMES - i) / (TONE_FRAMES - FULL_FRAMES);
+                    float env =
+                        i < FULL_FRAMES ? 1.0f : (float)(TONE_FRAMES - i) / (TONE_FRAMES - FULL_FRAMES);
                     int16_t s = (int16_t)(amplitude * env * sinf(i * w));
                     buf[i * 2] = s;
                     buf[i * 2 + 1] = s;
@@ -115,13 +118,21 @@ static void alert_task(void *)
 
 static void start_sound(TaskFunction_t fn, const char *name)
 {
-    if (!s_hw_ok || s_playing) return;
+    if (!s_hw_ok || s_playing) {
+        return;
+    }
     s_playing = true;
     xTaskCreatePinnedToCore(fn, name, 0x1000, nullptr, 1, nullptr, 0);
 }
 
-void buzzer_click() { start_sound(click_task, "buzzer_click"); }
-void buzzer_alert() { start_sound(alert_task, "buzzer_alert"); }
+void buzzer_click()
+{
+    start_sound(click_task, "buzzer_click");
+}
+void buzzer_alert()
+{
+    start_sound(alert_task, "buzzer_alert");
+}
 
 // ---------------------------------------------------------------- LED strip
 
@@ -136,29 +147,45 @@ struct LedState {
 
 static LedState s_led;
 static LedState s_saved;
-static uint8_t s_level = 0;          // current fade level, 0..255
-static uint8_t s_target = 0;         // level the fade is heading to
-static uint8_t s_phase = 0;          // breathing phase
+static uint8_t s_level = 0;  // current fade level, 0..255
+static uint8_t s_target = 0; // level the fade is heading to
+static uint8_t s_phase = 0;  // breathing phase
 static uint32_t s_last_tick = 0;
 static const uint32_t LED_FRAME_MS = 20;
 
 static void led_set(LedMode mode, uint8_t r, uint8_t g, uint8_t b)
 {
-    if (!s_hw_ok || !cfg.ledEnabled) return;
+    if (!s_hw_ok || !cfg.ledEnabled) {
+        return;
+    }
     s_led.mode = mode;
     s_led.color = CRGB(r, g, b);
     s_phase = 0;
     s_target = 255;
 }
 
-void led_pulse(uint8_t r, uint8_t g, uint8_t b) { led_set(LED_PULSE, r, g, b); }
-void led_solid(uint8_t r, uint8_t g, uint8_t b) { led_set(LED_SOLID, r, g, b); }
-void led_off() { s_target = 0; }
-void led_save() { s_saved = s_led; }
+void led_pulse(uint8_t r, uint8_t g, uint8_t b)
+{
+    led_set(LED_PULSE, r, g, b);
+}
+void led_solid(uint8_t r, uint8_t g, uint8_t b)
+{
+    led_set(LED_SOLID, r, g, b);
+}
+void led_off()
+{
+    s_target = 0;
+}
+void led_save()
+{
+    s_saved = s_led;
+}
 
 void led_restore()
 {
-    if (!s_hw_ok) return;
+    if (!s_hw_ok) {
+        return;
+    }
     if (!cfg.ledEnabled || s_saved.mode == LED_OFF) {
         s_target = 0;
         return;
@@ -170,9 +197,13 @@ void led_restore()
 // Fades up in eighths of the remaining distance and down in halves.
 void led_tick()
 {
-    if (!s_hw_ok) return;
+    if (!s_hw_ok) {
+        return;
+    }
     uint32_t now = millis();
-    if (now - s_last_tick < LED_FRAME_MS) return;
+    if (now - s_last_tick < LED_FRAME_MS) {
+        return;
+    }
     s_last_tick = now;
 
     if (!cfg.ledEnabled) {
@@ -182,12 +213,16 @@ void led_tick()
     if (s_level != s_target) {
         int diff = (int)s_target - (int)s_level;
         int step = diff / (diff > 0 ? 8 : 2);
-        if (step == 0) step = diff > 0 ? 1 : -1;
+        if (step == 0) {
+            step = diff > 0 ? 1 : -1;
+        }
         s_level += step;
     }
 
     if (s_led.mode == LED_OFF || (s_level == 0 && s_target == 0)) {
-        if (s_led.mode != LED_OFF) s_led.mode = LED_OFF;
+        if (s_led.mode != LED_OFF) {
+            s_led.mode = LED_OFF;
+        }
         FastLED.clear();
     } else if (s_led.mode == LED_PULSE) {
         s_phase += 2;
@@ -207,10 +242,11 @@ void led_tick()
 
 static void led_begin()
 {
-    if (cfg.ledStripType == 0)
+    if (cfg.ledStripType == 0) {
         FastLED.addLeds<WS2812, PIN_LED_DATA, GRB>(s_leds, LED_COUNT);
-    else
+    } else {
         FastLED.addLeds<WS2811, PIN_LED_DATA, RGB>(s_leds, LED_COUNT);
+    }
     FastLED.setCorrection(CRGB(255, 50, 255));
     FastLED.setDither(BINARY_DITHER);
     FastLED.setMaxPowerInMilliWatts(LED_MAX_MILLIWATTS);
@@ -220,7 +256,10 @@ static void led_begin()
 
 // ---------------------------------------------------------------- init
 
-bool hw_is_ready() { return s_hw_ok; }
+bool hw_is_ready()
+{
+    return s_hw_ok;
+}
 
 void hw_init()
 {
@@ -232,7 +271,11 @@ void hw_init()
 
 void hw_settings_changed()
 {
-    if (!s_hw_ok) return;
-    if (!s_playing) render_click();     // the click task reads the buffer while playing
+    if (!s_hw_ok) {
+        return;
+    }
+    if (!s_playing) {
+        render_click(); // the click task reads the buffer while playing
+    }
     FastLED.setBrightness(cfg.ledBrightness * 255 / 100);
 }
