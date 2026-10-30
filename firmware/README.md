@@ -154,7 +154,7 @@ Wi-Fi, OTA and the web server do not depend on the display or on the sound/LED d
 ## Known gaps
 
 * **Fonts:** Roboto Medium (SIL Open Font License, `assets/fonts/OFL-Roboto.txt`), generated into
-  `src/fonts/` by `tools/gen_fonts.py` (Pillow, offline; `tools/` is gitignored, the generated files are not).
+  `src/fonts/` by `tools/gen_fonts.py` (Pillow, offline).
   Seven UI sizes (14 to 48 px) with ASCII, Latin-1 and common typographic characters, so umlauts in news
   headlines and network names render as they are; arrows and other symbols come from Montserrat through
   the fonts' fallback. The 64 px digits font (price, block height, clock) has digits and separators only.
@@ -164,4 +164,4 @@ Wi-Fi, OTA and the web server do not depend on the display or on the sound/LED d
 * The LED effect functions (pulse, solid, fade) follow the stock state machine, but the exact
   colours the stock firmware uses on each event were only recovered for the BLOCK, PRICE and
   DIFFICULTY pages.
-* The stock images are not reproduced; the page icons are drawn by `tools/gen_assets.py` (`tools/` is gitignored).
+* The stock images are not reproduced; the page icons are drawn by `tools/gen_assets.py`.
