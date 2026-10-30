@@ -17,8 +17,6 @@ flashing tools needed, or over USB with `esptool` if you have physical access to
 
 ## Screenshots
 
-Rendered from the real UI code by the host test harness (`firmware/host`), not photographed.
-
 | Price chart | Block height |
 |---|---|
 | <img src="docs/screenshots/price-chart.png" width="400" alt="Price chart page"> | <img src="docs/screenshots/block-height.png" width="400" alt="Block height page"> |
