@@ -12,6 +12,7 @@ Hardware pins and the decompile addresses they came from: [HARDWARE.md](HARDWARE
 ```bash
 cd firmware
 .venv/bin/pio run          # standalone venv; or any PlatformIO install
+make                       # same thing; `make help` lists debug/safe/test/format/check
 ```
 
 Output: `.pio/build/wt32-sc01-plus/firmware.bin` (about 1.66 MB; the app slots are 3.3 MB).
