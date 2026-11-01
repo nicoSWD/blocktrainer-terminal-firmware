@@ -11,6 +11,7 @@ cd firmware
 .venv/bin/pio run              # default env: wt32-sc01-plus
 .venv/bin/pio run -e debug      # serial logging build
 .venv/bin/pio run -e safe       # networking only, no display/sound/LED
+make                            # wrapper for the above; `make check` = format-check + test + build
 ```
 
 If PlatformIO isn't installed, `pip install platformio` into a venv first; don't assume it's
