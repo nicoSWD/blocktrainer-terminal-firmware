@@ -12,8 +12,20 @@ Hardware pins and the decompile addresses they came from: [HARDWARE.md](HARDWARE
 ```bash
 cd firmware
 .venv/bin/pio run          # standalone venv; or any PlatformIO install
-make                       # same thing; `make help` lists debug/safe/test/format/check
+make                       # same thing; `make help` lists the targets
 ```
+
+| Target | What it does |
+|---|---|
+| `make` / `make build` | Build the default env (`wt32-sc01-plus`) |
+| `make debug` | Build with serial logging forced on |
+| `make safe` | Build networking only (no display, sound or LED) |
+| `make test` | Host render/stress, Wi-Fi and OTA tests |
+| `make format` / `make format-check` | Rewrite sources with clang-format / only report |
+| `make check` | `format-check` + `test` + `build`; run before a PR |
+| `make clean` / `make host-clean` | Remove PlatformIO / `host/` build output |
+
+PlatformIO is taken from `.venv/bin/pio`; use `make PIO=pio` for a system install.
 
 Output: `.pio/build/wt32-sc01-plus/firmware.bin` (about 1.66 MB; the app slots are 3.3 MB).
 It is built with the same toolchain as the stock image (ESP-IDF 4.4.7, `default_8MB.csv`
