@@ -13,7 +13,7 @@
 // Override per build with  PLATFORMIO_BUILD_FLAGS='-DFIRMWARE_VERSION=\"0.1.1\"' pio run -e ...
 // (the release workflow does this from the tag). Compared as %d.%d.%d against the latest GitHub release.
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "0.1.0"
+#define FIRMWARE_VERSION "0.2.0"
 #endif
 #define NVS_NAMESPACE "BTCLOCK"
 
