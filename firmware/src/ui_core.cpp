@@ -372,13 +372,6 @@ static String fit_width(String s, const lv_font_t *font, int max_w)
     return s + "...";
 }
 
-// '#' starts a colour command in recolor labels; user-provided names must not carry one.
-static String no_hash(String s)
-{
-    s.replace('#', ' ');
-    return s;
-}
-
 lv_obj_t *mk_label(lv_obj_t *parent, const char *text, const lv_font_t *font, lv_color_t color)
 {
     lv_obj_t *l = lv_label_create(parent);
@@ -656,10 +649,8 @@ lv_obj_t *mk_live_pill(lv_obj_t *right, lv_obj_t **dot)
 
 // ---------------------------------------------------------------- layers
 
-static lv_obj_t *s_container;  // pages live here
-static lv_obj_t *s_nav;        // invisible touch zones above the page
-static lv_obj_t *s_stream_bar; // 30 px bar above the page while a stream is live or scheduled
-static lv_obj_t *s_stream_label;
+static lv_obj_t *s_container;   // pages live here
+static lv_obj_t *s_nav;         // invisible touch zones above the page
 static lv_obj_t *s_sys;         // full-screen status screens (Wi-Fi, OTA)
 static lv_obj_t *s_wifi_banner; // slim "Wi-Fi lost" strip, never blocks touch
 
@@ -669,7 +660,6 @@ static bool s_switching = false;
 static uint32_t s_switch_ms = 0;
 static uint32_t s_last_switch_ms = 0;
 static uint32_t s_first_page_ms = 0; // price alerts arm 10 s after the first page
-static bool s_bar_shown = false;
 static bool s_banner_shown = false;
 static const int WIFI_BANNER_H = 20;
 static const uint32_t SWITCH_COOLDOWN_MS = 500;
@@ -682,21 +672,16 @@ int ui_current_page()
 {
     return s_current_page;
 }
-bool ui_stream_bar_visible()
-{
-    return s_bar_shown;
-}
 
-// The pages are flex columns, so a change of the content area (stream bar on top, Wi-Fi banner at the
-// bottom) re-flows them in place without rebuilding anything.
+// The pages are flex columns, so a change of the content area (Wi-Fi banner at the bottom)
+// re-flows them in place without rebuilding anything.
 static void layout_content()
 {
-    int y = s_bar_shown ? STREAM_BAR_H : 0;
-    int h = SCREEN_H - y - (s_banner_shown ? WIFI_BANNER_H : 0);
-    lv_obj_set_pos(s_container, 0, y);
+    int h = SCREEN_H - (s_banner_shown ? WIFI_BANNER_H : 0);
+    lv_obj_set_pos(s_container, 0, 0);
     lv_obj_set_size(s_container, SCREEN_W, h);
-    lv_obj_set_pos(s_nav, 0, y);
-    lv_obj_set_size(s_nav, SCREEN_W, SCREEN_H - y); // the touch zones keep working under the banner
+    lv_obj_set_pos(s_nav, 0, 0);
+    lv_obj_set_size(s_nav, SCREEN_W, SCREEN_H); // the touch zones keep working under the banner
 }
 
 static void set_wifi_banner(bool shown)
@@ -773,7 +758,6 @@ static void show_page(int page)
     s_current_page = page;
     s_last_switch_ms = millis();
     lv_obj_move_foreground(s_nav);
-    lv_obj_move_foreground(s_stream_bar);
     // menu-only pages (CONVERTER) have their own controls and no touch zones for page changes
     if (PAGE_INFO[page].menuOnly) {
         lv_obj_add_flag(s_nav, LV_OBJ_FLAG_HIDDEN);
@@ -898,71 +882,6 @@ static void price_alert_check()
         s_alert_in_zone = false;
         s_alert_fired = false;
     }
-}
-
-// ---------------------------------------------------------------- stream bar
-
-static bool stream_active()
-{
-    return cfg.showYoutubeBar && live.streamKnown &&
-           (live.streamStatus == "live" || live.streamStatus == "scheduled");
-}
-
-static void build_stream_bar()
-{
-    s_stream_bar = lv_obj_create(lv_scr_act());
-    lv_obj_remove_style_all(s_stream_bar);
-    lv_obj_set_size(s_stream_bar, SCREEN_W, STREAM_BAR_H);
-    lv_obj_set_pos(s_stream_bar, 0, 0);
-    lv_obj_set_style_bg_color(s_stream_bar, PX_CARD, 0);
-    lv_obj_set_style_bg_opa(s_stream_bar, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(s_stream_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(s_stream_bar, LV_OBJ_FLAG_HIDDEN);
-    s_stream_label = mk_label(s_stream_bar, "Loading stream...", FONT_S);
-    lv_label_set_recolor(s_stream_label, true);
-    lv_obj_align(s_stream_label, LV_ALIGN_CENTER, 0, 0);
-}
-
-static void update_stream_bar()
-{
-    bool active = stream_active();
-    if (active != s_bar_shown) {
-        s_bar_shown = active;
-        if (active) {
-            lv_obj_clear_flag(s_stream_bar, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(s_stream_bar, LV_OBJ_FLAG_HIDDEN);
-        }
-        layout_content();
-        if (s_current_page >= 0) {
-            s_pending_page = s_current_page; // pages rebuild for the new height
-        }
-    }
-    if (!active) {
-        return;
-    }
-
-    String text;
-    if (live.streamStatus == "live") {
-        String title = live.streamTitle.isEmpty() ? String("Blocktrainer") : no_hash(live.streamTitle);
-        title = fit_width(ui_tr(title.c_str()), FONT_S,
-                          SCREEN_W - 16 - (int)lv_txt_get_width("LIVE  ", 6, FONT_S, 0, 0));
-        text = "#FF0000 LIVE#  " + title;
-    } else {
-        int64_t remaining = live.streamStart - (int64_t)time(nullptr);
-        if (live.streamStart == 0 || time(nullptr) < 1700000000) {
-            text = "Loading stream...";
-        } else if (remaining <= 0) {
-            text = "#FFA500 Stream starting soon#";
-        } else {
-            char b[48];
-            snprintf(b, sizeof(b), "STREAM STARTS IN #FFA500 %02d:%02d:%02d#", (int)(remaining / 3600),
-                     (int)(remaining / 60 % 60), (int)(remaining % 60));
-            text = b;
-        }
-    }
-    set_text(s_stream_label, text);
-    lv_obj_align(s_stream_label, LV_ALIGN_CENTER, 0, 0);
 }
 
 // ---------------------------------------------------------------- brightness, rotation, night mode
@@ -1465,7 +1384,6 @@ bool ui_init()
     s_container = mk_box(lv_scr_act(), SCREEN_W, SCREEN_H);
     lv_obj_set_pos(s_container, 0, 0);
     build_nav();
-    build_stream_bar();
     s_wifi_banner = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(s_wifi_banner);
     lv_obj_set_size(s_wifi_banner, SCREEN_W, WIFI_BANNER_H); // the pages shrink above it
@@ -1505,7 +1423,6 @@ static void ui_task(void *)
         if (now - last_second >= 1000) {
             last_second = now;
             night_mode_tick();
-            update_stream_bar();
             if (s_current_page >= 0 && PAGE_OPS[s_current_page].update) {
                 PAGE_OPS[s_current_page].update();
             }

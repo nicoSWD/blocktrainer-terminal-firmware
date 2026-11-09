@@ -40,13 +40,6 @@ struct LiveData {
     uint32_t chartVersion = 0; // bumped when chartJson changes
     float chartChange[3] = {0, 0, 0};
 
-    // stream bar
-    String streamStatus; // "live", "scheduled", ...
-    String streamTitle;
-    int64_t streamStart = 0; // scheduled start, unix time (0 = unknown)
-    bool streamScheduled = false;
-    bool streamKnown = false;
-
     uint32_t dataVersion = 0; // bumped by every successful fetch
     uint32_t lastFetchMs = 0;
 };

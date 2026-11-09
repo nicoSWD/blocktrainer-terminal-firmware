@@ -30,9 +30,6 @@ static void create_missing_keys()
     if (!prefs.isKey("priceInterval")) {
         prefs.putInt("priceInterval", 10000);
     }
-    if (!prefs.isKey("showYoutubeBar")) {
-        prefs.putBool("showYoutubeBar", true);
-    }
     if (!prefs.isKey("showEvents")) {
         prefs.putBool("showEvents", true);
     }
@@ -129,7 +126,6 @@ static void log_settings()
     Serial.printf("- currency: %s\n", cfg.currency.c_str());
     Serial.printf("- timezone: %s (%s)\n", cfg.timezoneLabel.c_str(), cfg.timezoneDef.c_str());
     Serial.printf("- price interval: %d ms\n", cfg.priceInterval);
-    Serial.printf("- stream bar: %s\n", cfg.showYoutubeBar ? "on" : "off");
     Serial.printf("- events: %s\n", cfg.showEvents ? "on" : "off");
     Serial.printf("- update check: %s\n", cfg.checkForUpdates ? "on" : "off");
     Serial.printf("- brightness: %d %%\n", cfg.brightness);
@@ -150,7 +146,6 @@ void config_load()
     cfg.timezoneLabel = prefs.getString("timezoneLabel", "");
     cfg.timezoneDef = prefs.getString("timezoneDef", "CET-1CEST,M3.5.0/2,M10.5.0/3");
     cfg.priceInterval = prefs.getInt("priceInterval", 10000);
-    cfg.showYoutubeBar = prefs.getBool("showYoutubeBar", true);
     cfg.showEvents = prefs.getBool("showEvents", true);
     cfg.checkForUpdates = prefs.getBool("checkForUpdates", true);
     cfg.brightness = prefs.getInt("brightness", 60);
@@ -197,7 +192,6 @@ void config_save_all()
     prefs.putString("timezoneLabel", cfg.timezoneLabel);
     prefs.putString("timezoneDef", cfg.timezoneDef);
     prefs.putInt("priceInterval", cfg.priceInterval);
-    prefs.putBool("showYoutubeBar", cfg.showYoutubeBar);
     prefs.putBool("showEvents", cfg.showEvents);
     prefs.putBool("checkForUpdates", cfg.checkForUpdates);
     prefs.putInt("brightness", cfg.brightness);

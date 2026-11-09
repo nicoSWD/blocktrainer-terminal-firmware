@@ -8,7 +8,7 @@ static lv_obj_t *w_menu; // overlay, null while closed
 static lv_obj_t *w_settings_view, *w_pages_view;
 static lv_obj_t *w_qr, *w_ip_label, *w_brightness;
 static lv_obj_t *w_currency_btn[3];
-static lv_obj_t *w_alert_sw, *w_night_sw, *w_stream_sw;
+static lv_obj_t *w_alert_sw, *w_night_sw;
 static lv_obj_t *w_auto_value, *w_chart_value;
 static lv_obj_t *w_page_tile[PAGE_COUNT];
 static lv_obj_t *w_mode_label;
@@ -101,7 +101,6 @@ static void refresh_settings()
     };
     sync(w_alert_sw, cfg.alertEnabled);
     sync(w_night_sw, cfg.nightActive);
-    sync(w_stream_sw, cfg.showYoutubeBar);
     set_text(w_auto_value, cfg.autoPage == 0 ? String("OFF") : String(cfg.autoPage) + " s");
     set_text(w_chart_value, cfg.chartTf == 3 ? "5d" : cfg.chartTf == 2 ? "3d" : "24h");
 }
@@ -124,13 +123,6 @@ static void on_night(lv_event_t *e)
 {
     cfg.nightActive = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
     prefs.putBool("nightActive", cfg.nightActive);
-}
-
-static void on_stream(lv_event_t *e)
-{
-    cfg.showYoutubeBar = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
-    prefs.putBool("showYoutubeBar", cfg.showYoutubeBar);
-    net_apply_page_flags();
 }
 
 static int auto_step_index()
@@ -290,12 +282,10 @@ static void build_settings_view(lv_obj_t *parent)
             step_auto(+1);
         });
 
-    // row 2: night mode, livestream, chart timeframe
+    // row 2: night mode, chart timeframe
     cell = mk_cell(w_settings_view, 0, ROW2_Y, "NIGHT MODE");
     w_night_sw = mk_switch_row(cell, cfg.nightActive, on_night);
-    cell = mk_cell(w_settings_view, 1, ROW2_Y, "LIVESTREAM");
-    w_stream_sw = mk_switch_row(cell, cfg.showYoutubeBar, on_stream);
-    cell = mk_cell(w_settings_view, 2, ROW2_Y, "CHART");
+    cell = mk_cell(w_settings_view, 1, ROW2_Y, "CHART");
     mk_stepper(
         cell, &w_chart_value,
         [](lv_event_t *) {
@@ -412,7 +402,7 @@ static void menu_close_now()
     w_menu = nullptr;
     // the children are gone: forget the pointers so a recycled address cannot pass valid()
     w_settings_view = w_pages_view = w_qr = w_ip_label = w_brightness = w_mode_label = nullptr;
-    w_alert_sw = w_night_sw = w_stream_sw = w_auto_value = w_chart_value = nullptr;
+    w_alert_sw = w_night_sw = w_auto_value = w_chart_value = nullptr;
     for (int i = 0; i < 3; i++) {
         w_currency_btn[i] = nullptr;
     }
