@@ -11,7 +11,6 @@
 
 static const int SCREEN_W = 480;
 static const int SCREEN_H = 320;
-static const int STREAM_BAR_H = 30;
 static const int NAV_BAR_H = 49; // bottom bar of the menu
 
 // ---------------------------------------------------------------- fonts
@@ -146,9 +145,8 @@ int ui_current_page();
 void ui_goto_page(int page);          // request a page switch
 int ui_next_page(int from, int step); // next usable rotating page in page_order(), step +1 / -1
 void ui_set_brightness(int percent);
-void ui_apply_rotation();     // re-applies cfg.rotation and redraws
-bool ui_stream_bar_visible(); // pages that care about the available height rebuild on change
-void ui_wake();               // reset the night-mode idle timer
+void ui_apply_rotation(); // re-applies cfg.rotation and redraws
+void ui_wake();           // reset the night-mode idle timer
 
 // ---------------------------------------------------------------- menu (ui_menu.cpp)
 

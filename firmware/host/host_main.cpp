@@ -59,7 +59,6 @@ static void host_step(uint32_t dt)
     if (now - h_last_second >= 1000) {
         h_last_second = now;
         night_mode_tick();
-        update_stream_bar();
         if (s_current_page >= 0 && PAGE_OPS[s_current_page].update) {
             PAGE_OPS[s_current_page].update();
         }
@@ -209,11 +208,6 @@ static void load_sample_data()
     live.chartJson = make_chart_json(48, 120, live.price[CUR_EUR], live.price[CUR_USD], live.price[CUR_CHF]);
     live.chartVersion = 1;
     live.dataVersion = 1;
-    live.streamKnown = false; // stream_bar(true) switches the bar on
-    live.streamStatus = "live";
-    live.streamTitle =
-        "Bitcoin Kurs Analyse live: Warum der Preis heute steigt und was Anleger jetzt wissen muessen";
-    live.streamScheduled = false;
 
     time_t now = host_time(nullptr);
     g_news.clear();
@@ -270,7 +264,6 @@ static void default_config()
     cfg.currency = "EUR";
     cfg.priceSeparator = true;
     cfg.chartTf = 1;
-    cfg.showYoutubeBar = true;
 }
 
 // ---------------------------------------------------------------- checks on the widget tree
@@ -515,18 +508,6 @@ static void goto_page(int page)
     }
 }
 
-static void stream_bar(bool on)
-{
-    live.streamKnown = on;
-    cfg.showYoutubeBar = true;
-    settle();
-    if (ui_stream_bar_visible() != on) {
-        printf("  FAIL stream bar state\n");
-        g_warnings++;
-    }
-    settle();
-}
-
 static const char *PAGE_FILE[PAGE_COUNT] = {"price", "chart", "block", "clock", "bitaxe",
                                             "fees",  "conv",  "news",  "diff"};
 
@@ -570,22 +551,17 @@ static void render_all()
     check_transliteration();
     default_config();
     load_sample_data();
-    live.streamKnown = false;
     debug_chart_json();
     ui_show_first_page();
     settle();
 
-    // every page, full height and with the stream bar
-    for (int bar = 0; bar < 2; bar++) {
-        stream_bar(bar == 1);
-        for (int p = 0; p < PAGE_COUNT; p++) {
-            goto_page(p);
-            char n[64];
-            snprintf(n, sizeof(n), "page_%s_%s", PAGE_FILE[p], bar ? "bar" : "full");
-            shot(n);
-        }
+    // every page, full height
+    for (int p = 0; p < PAGE_COUNT; p++) {
+        goto_page(p);
+        char n[64];
+        snprintf(n, sizeof(n), "page_%s", PAGE_FILE[p]);
+        shot(n);
     }
-    stream_bar(false);
 
     // price page: currencies, split screen, thousands separator off
     const char *curs[3] = {"USD", "EUR", "CHF"};
@@ -603,14 +579,11 @@ static void render_all()
     ui_settings_changed();
     settle();
     shot("price_split_full");
-    stream_bar(true);
-    shot("price_split_bar");
     cfg.splitSecCur = "CHF";
     ui_settings_changed();
     settle();
-    shot("price_split_bar_eur_chf");
+    shot("price_split_eur_chf");
     cfg.splitSecCur = "";
-    stream_bar(false);
     cfg.priceSplit = false;
     cfg.priceSeparator = false;
     ui_settings_changed();
@@ -650,18 +623,14 @@ static void render_all()
     ui_settings_changed();
     settle();
 
-    // every news item (long headlines), full height and with the bar
-    for (int bar = 0; bar < 2; bar++) {
-        stream_bar(bar == 1);
-        goto_page(PAGE_NEWS);
-        for (int k = 1; k < 6; k++) {
-            run_ms(10100);
-            char n[64];
-            snprintf(n, sizeof(n), "news_item%d_%s", k + 1, bar ? "bar" : "full");
-            shot(n);
-        }
+    // every news item (long headlines)
+    goto_page(PAGE_NEWS);
+    for (int k = 1; k < 6; k++) {
+        run_ms(10100);
+        char n[64];
+        snprintf(n, sizeof(n), "news_item%d", k + 1);
+        shot(n);
     }
-    stream_bar(false);
 
     // chart timeframes
     for (int tf = 1; tf <= 3; tf++) {
@@ -674,27 +643,6 @@ static void render_all()
         shot(n);
     }
     cfg.chartTf = 1;
-
-    // stream bar variants on the price page
-    goto_page(PAGE_PRICE);
-    stream_bar(true);
-    live.streamStatus = "scheduled";
-    live.streamStart = (int64_t)host_time(nullptr) + 3725;
-    run_ms(1200);
-    shot("stream_scheduled");
-    live.streamStart = (int64_t)host_time(nullptr) - 5;
-    run_ms(1200);
-    shot("stream_starting");
-    live.streamStatus = "live";
-    live.streamTitle = "Kurz";
-    run_ms(1200);
-    shot("stream_live_short");
-    live.streamTitle = "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW";
-    run_ms(1200);
-    shot("stream_live_wide");
-    live.streamTitle =
-        "Bitcoin Kurs Analyse live: Warum der Preis heute steigt und was Anleger jetzt wissen muessen";
-    stream_bar(false);
 
     // menu: settings and pages view, plain touches like a user
     printf("-- menu\n");
@@ -968,20 +916,16 @@ static void render_all()
     // Wi-Fi lost banner over pages with bottom content
     printf("-- banner\n");
     const int banner_pages[] = {PAGE_NEWS, PAGE_FEES, PAGE_CONV, PAGE_BITAXE, PAGE_CLOCK, PAGE_CHART};
-    for (int bar = 0; bar < 2; bar++) {
-        stream_bar(bar == 1);
-        for (int p : banner_pages) {
-            goto_page(p);
-            ui_notify_wifi_lost();
-            run_ms(300);
-            char n[64];
-            snprintf(n, sizeof(n), "banner_%s_%s", PAGE_FILE[p], bar ? "bar" : "full");
-            shot(n);
-            ui_notify_wifi_restored();
-            run_ms(300);
-        }
+    for (int p : banner_pages) {
+        goto_page(p);
+        ui_notify_wifi_lost();
+        run_ms(300);
+        char n[64];
+        snprintf(n, sizeof(n), "banner_%s", PAGE_FILE[p]);
+        shot(n);
+        ui_notify_wifi_restored();
+        run_ms(300);
     }
-    stream_bar(false);
 
     // empty and extreme data
     printf("-- edge data\n");
@@ -1014,7 +958,6 @@ static void render_all()
     live.diffProgress = 100.0f;
     live.diffBlocks = 2016;
     live.chartChange[CUR_EUR] = -88.88f;
-    live.streamKnown = false;
     for (int p : {(int)PAGE_PRICE, (int)PAGE_CHART, (int)PAGE_BLOCK, (int)PAGE_FEES, (int)PAGE_DIFF}) {
         goto_page(p);
         char n[64];
@@ -1030,7 +973,6 @@ static void render_all()
         }
     };
     load_sample_data();
-    live.streamKnown = false;
     goto_page(PAGE_PRICE);
     expect_text("thousands separator", "97,123");
     expect_text("change text", "+1.23%");
@@ -1071,7 +1013,6 @@ static void render_all()
     run_ms(1200);
     shot("bitaxe_long_name");
     load_sample_data();
-    live.streamKnown = false;
     goto_page(PAGE_PRICE);
     printf("render done: %d images, %d warnings\n", g_shots, g_warnings);
 }
@@ -1190,12 +1131,6 @@ static void fuzz_data()
         live.chartJson = random_chart_json();
         live.chartVersion++;
     }
-    live.streamTitle = random_string();
-    static const char *ST[] = {"live", "scheduled", "none", ""};
-    live.streamStatus = ST[rnd(4)];
-    live.streamKnown = rnd(3) != 0;
-    live.streamStart = rnd(3) == 0 ? 0 : (int64_t)host_time(nullptr) + (int64_t)rnd(100000) - 50000;
-
     g_news.clear();
     int nn = rnd(4) == 0 ? 0 : rnd(8);
     for (int i = 0; i < nn; i++) {
@@ -1310,14 +1245,9 @@ static void canonical_state()
     ui_menu_close();
     ota.stage = OTA_IDLE;
     ota.active = false;
-    {
-        DataLock lock;
-        live.streamKnown = false;
-    }
     default_config();
     cfg.pg[PAGE_NEWS] = true;
     load_sample_data();
-    live.streamKnown = false;
     s_pending_page = PAGE_CLOCK;
     run_ms(1500);
     s_pending_page = PAGE_CLOCK;
@@ -1328,13 +1258,8 @@ static void canonical_state()
 
 static void stress_cycle(int scale)
 {
-    // 1. pages: real switching with the stream bar toggling underneath
+    // 1. pages: real switching
     for (int i = 0; i < 200 / scale; i++) {
-        if (i % 5 == 0) {
-            live.streamKnown = !live.streamKnown;
-            live.streamStatus = rnd(2) ? "live" : "scheduled";
-            live.streamStart = (int64_t)host_time(nullptr) + 600;
-        }
         s_pending_page = rnd(PAGE_COUNT);
         run_ms(rnd(3) == 0 ? 20 : 700, 20);
         if (i % 3 == 0) {
@@ -1500,10 +1425,6 @@ static int stress(unsigned seed)
             host_show_page(order[i]);
             update_all_pages();
             lv_timer_handler();
-        }
-        if (round % 10 == 0) {
-            live.streamKnown = !live.streamKnown;
-            run_ms(1100, 100);
         }
     }
 

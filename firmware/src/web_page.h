@@ -79,7 +79,6 @@ dt{color:var(--dim)}dd{margin:0;text-align:right;font-variant-numeric:tabular-nu
 <fieldset><legend>Pages</legend>
 <div class="hint">Drag to reorder, or use the arrows. Pages are switched on and off on the device itself.</div>
 <div id="sort">%PAGE_SORT_ITEMS%</div>
-<label class="chk"><input type="checkbox" name="showYoutubeBar"%YOUTUBE_ON%> <span>Show the video bar</span></label>
 <label class="chk"><input type="checkbox" name="showEvents"%EVENTS_ON%> <span>Show events</span></label>
 </fieldset>
 

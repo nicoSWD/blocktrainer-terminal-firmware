@@ -17,11 +17,18 @@
 #endif
 #define NVS_NAMESPACE "BTCLOCK"
 
-#define URL_PRICE "https://api.blocktrainer.de/price.json"
-#define URL_CHART "https://api.blocktrainer.de/chart.json"
-#define URL_MEMPOOL "https://api.blocktrainer.de/mempool.json"
-#define URL_YOUTUBE "https://api.blocktrainer.de/youtube.json"
-#define URL_NEWS "https://api.blocktrainer.de/news.json"
+// BTC price in EUR/USD/CHF. One request, no key: Kraken public Ticker. 24h change is derived
+// from the last trade against today's open, since Kraken publishes no rolling 24h change.
+#define URL_PRICE "https://api.kraken.com/0/public/Ticker?pair=XBTUSD,XBTEUR,XBTCHF"
+// OHLC history per currency (three requests, one per pair), 30-minute candles. The chart task
+// recombines them into the internal {"tf":{...}} JSON.
+#define URL_CHART "https://api.kraken.com/0/public/OHLC"
+// Mempool, difficulty and block height come from mempool.space (free, no key).
+#define URL_MEMPOOL_FEES "https://mempool.space/api/v1/fees/recommended"
+#define URL_MEMPOOL_HEIGHT "https://mempool.space/api/blocks/tip/height"
+#define URL_MEMPOOL_DIFF "https://mempool.space/api/v1/difficulty-adjustment"
+// News from the public blocktrainer.de RSS feed (no key needed).
+#define URL_NEWS "https://www.blocktrainer.de/feed.xml"
 // Update channel: the latest (non-draft, non-prerelease) release of this project on GitHub.
 #ifndef URL_UPDATE // the host OTA test points this at a local server
 #define URL_UPDATE "https://api.github.com/repos/nicoSWD/blocktrainer-terminal-firmware/releases/latest"
@@ -72,7 +79,6 @@ struct Settings {
     uint8_t ledStripType = 1;   // 0 = WS2812 (GRB), otherwise WS2811 (RGB)
     uint8_t buzzerVolume = 50;  // percent
 
-    bool showYoutubeBar = true;
     bool showEvents = true;
     bool checkForUpdates = true;
     bool nightActive = false;

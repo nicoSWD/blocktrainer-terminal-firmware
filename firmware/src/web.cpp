@@ -75,7 +75,6 @@ static String render_index()
     }
     h.replace("%SPLITSEC_AUTO_SEL%", selected(cfg.splitSecCur.isEmpty()));
 
-    h.replace("%YOUTUBE_ON%", checked(cfg.showYoutubeBar));
     h.replace("%EVENTS_ON%", checked(cfg.showEvents));
     h.replace("%UPDATES_ON%", checked(cfg.checkForUpdates));
     h.replace("%DEBUG_ON%", checked(cfg.debugEnabled));
@@ -229,7 +228,6 @@ static void handle_save()
     if (server.hasArg("buzzerVolume")) {
         cfg.buzzerVolume = server.arg("buzzerVolume").toInt();
     }
-    cfg.showYoutubeBar = arg_bool("showYoutubeBar");
     cfg.showEvents = arg_bool("showEvents");
     cfg.checkForUpdates = arg_bool("checkForUpdates");
     cfg.debugEnabled = arg_bool("debug");
