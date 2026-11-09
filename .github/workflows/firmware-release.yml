@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: firmware-release-${{ github.ref }}
@@ -176,13 +177,15 @@ jobs:
           fi
 
       # The binaries above already carry the tag's version via -DFIRMWARE_VERSION; this keeps the
-      # default in config.h in step so local builds don't report a stale number. It is a commit after
-      # the release (not before the tag) because a tag pushed with GITHUB_TOKEN would not start this
-      # workflow. A manual run only shows what the bump would change.
+      # default in config.h in step so local builds don't report a stale number. It runs after the
+      # release (not before the tag) because a tag pushed with GITHUB_TOKEN would not start this
+      # workflow. main is branch-protected, so it opens a pull request rather than pushing to main.
+      # A manual run only shows what the bump would change.
       - name: Bump FIRMWARE_VERSION default in config.h
         env:
           VERSION: ${{ steps.version.outputs.version }}
           IS_RELEASE: ${{ steps.version.outputs.is_release }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "$IS_RELEASE" != "true" ]; then
             if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -210,8 +213,17 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Bump FIRMWARE_VERSION to $VERSION [skip ci]"
-          if ! git push origin main; then
-            git pull --rebase origin main
-            git push origin main
+          git commit -am "Bump FIRMWARE_VERSION to $VERSION"
+
+          # main requires changes via a pull request, so push a version-named branch and open a PR.
+          # No [skip ci]: the PR must run the required "test" check before it can merge.
+          BRANCH="bump-firmware-version-$VERSION"
+          git checkout -b "$BRANCH"
+          git push -f origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --json number --jq '.[0].number')" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "Bump FIRMWARE_VERSION to $VERSION" \
+              --body "Release v$VERSION shipped; lands the config.h default bump so local builds report $VERSION."
+          else
+            echo "PR for $BRANCH already exists"
           fi
