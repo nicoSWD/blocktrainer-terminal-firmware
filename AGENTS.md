@@ -70,7 +70,8 @@ See the table in `firmware/README.md` ("Layout" section) for the file-to-role ma
 - `.github/workflows/firmware-release.yml` builds with `-DFIRMWARE_VERSION` from the tag, runs the
   three host test suites as a gate, then publishes the GitHub release (asset names matter: the
   device's OTA check matches `bt-terminal-firmware-v<version>.bin`).
-- Last step commits the new version to the default in `firmware/src/config.h` on `main`
-  (`.github/scripts/bump-firmware-version.sh`, `[skip ci]`). Don't bump it by hand or tag from the
-  workflow: a tag pushed with `GITHUB_TOKEN` doesn't trigger other workflows.
+- Last step opens a PR that bumps the default in `firmware/src/config.h` to the release version
+  (`.github/scripts/bump-firmware-version.sh`). `main` is branch-protected, so it can't push
+  directly; the PR has no `[skip ci]` so the required `test` check runs. Don't bump it by hand or
+  tag from the workflow: a tag pushed with `GITHUB_TOKEN` doesn't trigger other workflows.
 - `workflow_dispatch` builds and tests only; it creates no release and just prints the bump diff.
